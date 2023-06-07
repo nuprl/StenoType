@@ -1,0 +1,4 @@
+__pycache__
+build
+.STARCODER_ENDPOINT
+tree-sitter-typescript
