@@ -9,8 +9,8 @@ Language.build_library(LANGUAGES_SO, [TREE_SITTER_TS])
 class TypeInference:
     def __init__(self, model):
         self.model = model
-        self.parser = Parser()
         self.language = Language(LANGUAGES_SO, "typescript")
+        self.parser = Parser()
         self.parser.set_language(self.language)
 
     def parse(self, s: str):
@@ -64,14 +64,33 @@ class TypeInference:
 
         return chunks
 
+    def infill_types(self, chunks: list[str]) -> str:
+        if len(chunks) < 2:
+            return "".join(chunks)
+
+        infilled_prefix = chunks[0]
+        for index, chunk in enumerate(chunks[1:]):
+            infilled_prefix += ": "
+            suffix = "".join(chunks[index + 1:])
+
+            clipped_prefix, clipped_suffix = self.model.clip_text(infilled_prefix, suffix)
+            filled_type = self.model.infill(clipped_prefix, clipped_suffix)
+            print("Prefix:", clipped_prefix)
+            print("Type:", filled_type)
+            print("Suffix:", clipped_suffix)
+            print()
+
+            infilled_prefix += filled_type + chunk
+
+        return infilled_prefix
+
     def infer(self, content: str):
         content = self.convert_arrow_funs(content)
         chunks = self.split_at_annotation_locations(content)
+        
+        infilled = self.infill_types(chunks)
 
         # TODO
-        # Now we have chunks split at type annotation locations
-        # So we can construct prefix/suffix and use that for infilling
-        # Still need to figure out clipping (if it's too long)
-        # And maybe parsing the returned type
+        # Need to parse and extract the returned type
 
-        print(content)
+        print(infilled)

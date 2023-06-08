@@ -14,6 +14,7 @@ def parse_args():
     parser.add_argument(
         "--dataset",
         type=str,
+        required=True,
         help="load the input dataset from a .parquet file, .jsonl file, or local Hugging Face dataset; otherwise tries to load from the Hugging Face Hub")
     parser.add_argument(
         "--revision",
