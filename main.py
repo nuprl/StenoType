@@ -56,6 +56,7 @@ def main():
     # For now, use TS with no type annotations
     # Still need to strip type definitions
     # TODO: add a column with type definitions removed, or remove them on-the-fly?
+    # For now, use content column (with type defs and anns) and remove on the fly
     # Later we can look try a JS dataset
     dataset = load_dataset(args.dataset, args.split, args.revision, args.workers)
 
@@ -80,7 +81,8 @@ def main():
         y = 42;
     }
     """
-    typeinf.infer(first_example)
+    result = typeinf.infer(first_example)
+    print(result)
 
     # TODO
     # - Do simple type inference with edit prompt

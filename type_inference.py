@@ -1,5 +1,6 @@
 from pathlib import Path
 from tree_sitter import Language, Parser, Node, Tree
+from typing import Optional
 
 LANGUAGES_SO = f"{Path(__file__).parent}/build/languages.so"
 TREE_SITTER_TS = f"{Path(__file__).parent}/tree-sitter-typescript/typescript"
@@ -19,7 +20,8 @@ class TypeInference:
     def node_to_str(self, node) -> str:
         return node.text.decode("utf-8")
 
-    def run_query(self, tree, query_str: str):
+    def run_query(self, content: str, query_str: str):
+        tree = self.parse(content)
         query = self.language.query(query_str)
         return query.captures(tree.root_node)
 
@@ -29,11 +31,10 @@ class TypeInference:
         Before: x => x
         After: (x) => x
         """
-        tree = self.parse(content)
-        captures = self.run_query(tree,
-                """
-                (arrow_function parameter: (identifier) @param body: (_))
-                """)
+        captures = self.run_query(content,
+            """
+            (arrow_function parameter: (identifier) @param body: (_))
+            """)
         pairs = [[c[0].start_byte, c[0].end_byte] for c in captures]
 
         content_bytes = bytearray(content.encode("utf-8"))
@@ -44,17 +45,16 @@ class TypeInference:
         return content_bytes.decode("utf-8")
 
     def split_at_annotation_locations(self, content: str) -> list[str]:
-        tree = self.parse(content)
-        captures = self.run_query(tree,
-                """
-                [
-                    (required_parameter pattern: (_) @ann)
-                    (optional_parameter pattern: (_)) @ann
-                    (formal_parameters) @ann
-                    (public_field_definition name: (_) @ann)
-                    (variable_declarator name: (_) @ann)
-                ]
-                """)
+        captures = self.run_query(content,
+            """
+            [
+                (required_parameter pattern: (_) @ann)
+                (optional_parameter pattern: (_)) @ann
+                (formal_parameters) @ann
+                (public_field_definition name: (_) @ann)
+                (variable_declarator name: (_) @ann)
+            ]
+            """)
         indices = [None] + sorted([c[0].end_byte for c in captures]) + [None]
         content_bytes = content.encode("utf-8")
 
@@ -63,6 +63,22 @@ class TypeInference:
             chunks.append(content_bytes[s:e].decode("utf-8"))
 
         return chunks
+
+    def extract_type(self, generated_type: str) -> Optional[str]:
+        template = f"let x: {generated_type}"
+        captures = self.run_query(template,
+            """
+            (variable_declarator type: (type_annotation (_) @ann))
+            """)
+        return self.node_to_str(captures[0][0]) if captures else None
+
+    def generate_type(self, prefix: str, suffix: str, retries: int = 3) -> str:
+        for _ in range(retries):
+            generated = self.model.infill(prefix, suffix)
+            extracted = self.extract_type(generated)
+            if extracted:
+                return extracted
+        return "any"
 
     def infill_types(self, chunks: list[str]) -> str:
         if len(chunks) < 2:
@@ -74,24 +90,12 @@ class TypeInference:
             suffix = "".join(chunks[index + 1:])
 
             clipped_prefix, clipped_suffix = self.model.clip_text(infilled_prefix, suffix)
-
-            # TODO: Need to parse and extract a type annotation from filled_type,
-            # because it might contain other junk code
-            filled_type = self.model.infill(clipped_prefix, clipped_suffix)
-
+            filled_type = self.generate_type(clipped_prefix, clipped_suffix)
             infilled_prefix += filled_type + chunk
-
-            # print("Prefix:", clipped_prefix)
-            # print("Type:", filled_type)
-            # print("Suffix:", clipped_suffix)
-            # print()
 
         return infilled_prefix
 
-    def infer(self, content: str):
+    def infer(self, content: str) -> str:
         content = self.convert_arrow_funs(content)
         chunks = self.split_at_annotation_locations(content)
-
-        infilled = self.infill_types(chunks)
-
-        print(infilled)
+        return self.infill_types(chunks)
