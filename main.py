@@ -52,6 +52,11 @@ def main():
     args = parse_args()
 
     typeinf = TypeInference(Model())
+
+    # For now, use TS with no type annotations
+    # Still need to strip type definitions
+    # TODO: add a column with type definitions removed, or remove them on-the-fly?
+    # Later we can look try a JS dataset
     dataset = load_dataset(args.dataset, args.split, args.revision, args.workers)
 
     #first_example = dataset[0]["content_without_annotations"]
@@ -78,11 +83,10 @@ def main():
     typeinf.infer(first_example)
 
     # TODO
-    # For now, use TS with no type annotations
-    # - Later, we can look at JS, TS with no type annotations/definitions
-    # Do simple type inference
-    # Then type check (using TypeScript LSP?)
-    # Then output results
+    # - Do simple type inference with edit prompt
+    # - Evaluate with accuracy
+    #   - Later we can type check (using TypeScript LSP?)
+    # - Then output results
 
 if __name__ == "__main__":
     main()

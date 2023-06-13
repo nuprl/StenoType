@@ -74,23 +74,24 @@ class TypeInference:
             suffix = "".join(chunks[index + 1:])
 
             clipped_prefix, clipped_suffix = self.model.clip_text(infilled_prefix, suffix)
+
+            # TODO: Need to parse and extract a type annotation from filled_type,
+            # because it might contain other junk code
             filled_type = self.model.infill(clipped_prefix, clipped_suffix)
-            print("Prefix:", clipped_prefix)
-            print("Type:", filled_type)
-            print("Suffix:", clipped_suffix)
-            print()
 
             infilled_prefix += filled_type + chunk
+
+            # print("Prefix:", clipped_prefix)
+            # print("Type:", filled_type)
+            # print("Suffix:", clipped_suffix)
+            # print()
 
         return infilled_prefix
 
     def infer(self, content: str):
         content = self.convert_arrow_funs(content)
         chunks = self.split_at_annotation_locations(content)
-        
-        infilled = self.infill_types(chunks)
 
-        # TODO
-        # Need to parse and extract the returned type
+        infilled = self.infill_types(chunks)
 
         print(infilled)
