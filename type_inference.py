@@ -8,6 +8,13 @@ TREE_SITTER_TS = f"{Path(__file__).parent}/tree-sitter-typescript/typescript"
 Language.build_library(LANGUAGES_SO, [TREE_SITTER_TS])
 
 class TypeInference:
+    """
+    This class does type inference (specifically, type annotation prediction)
+    for TypeScript. It parses an unannotated TypeScript file with tree_sitter,
+    determines the type annotation locations, splits the file at those
+    locations, and uses the provided model to perform fill-in-the-middle to
+    generate the missing type annotations.
+    """
     def __init__(self, model):
         self.model = model
         self.language = Language(LANGUAGES_SO, "typescript")
@@ -27,9 +34,12 @@ class TypeInference:
 
     def convert_arrow_funs(self, content: str) -> str:
         """
-        Ensures arrow functions have their parameters wrapped with parentheses, e.g.:
-        Before: x => x
-        After: (x) => x
+        Ensures arrow functions have their parameters wrapped with parentheses.
+        This allows type annotation prediction to be uniform (since type
+        annotations for single-parameter arrow functions require the
+        parentheses).
+
+        Example:  x => x      becomes      (x) => x
         """
         captures = self.run_query(content,
             """
@@ -37,6 +47,9 @@ class TypeInference:
             """)
         pairs = [[c[0].start_byte, c[0].end_byte] for c in captures]
 
+        # Given pairs of start and end bytes for the unparenthesized parameters,
+        # iterate over the byte array in reverse order (so we don't offset the
+        # indices) and insert ')' and '(' at the appropriate locations.
         content_bytes = bytearray(content.encode("utf-8"))
         for s, e in reversed(pairs):
             content_bytes[e:e] = bytearray(")".encode("utf-8"))
@@ -45,6 +58,17 @@ class TypeInference:
         return content_bytes.decode("utf-8")
 
     def split_at_annotation_locations(self, content: str) -> list[str]:
+        """
+        Given the TypeScript program as a string, split at the type annotation
+        locations and return a list of strings, where each item is the substring
+        between annotation locations.
+
+        Type annotation locations are immediately after:
+          - function parameters         function f(a: TYPE)
+          - formal parameter lists      function g(x): TYPE
+          - public field definitions    class { x: TYPE }
+          - variable declarators        let x: TYPE
+        """
         captures = self.run_query(content,
             """
             [
@@ -55,17 +79,35 @@ class TypeInference:
                 (variable_declarator name: (_) @ann)
             ]
             """)
+
+        # The end byte is where we want to insert type annotations.
+        # We add None to the beginning and end of the list of indices, so we
+        # can do array slicing, e.g. a[None:i] === a[:i]
         indices = [None] + sorted([c[0].end_byte for c in captures]) + [None]
         content_bytes = content.encode("utf-8")
-
         chunks = []
+
+        # Zip the list with itself, offset by 1.
+        # [None, i1, i2, None]    becomes    [(None, i1), (i1, i2), (i2, None)]
+        # This gives us the chunks:           c[:i1],     c[i1:i2], c[i2:]
+        # And we want to insert type annotations between the chunks.
         for s, e in zip(indices, indices[1:]):
             chunks.append(content_bytes[s:e].decode("utf-8"))
 
         return chunks
 
-    def extract_type(self, generated_type: str) -> Optional[str]:
-        template = f"let x: {generated_type}"
+    def extract_type(self, generated: str) -> Optional[str]:
+        """
+        Given a string that represents the generated text from infilling,
+        use the parser to extract the prefix that is a valid type annotation.
+
+        This works by creating a variable declaration template, and the parser
+        is lenient enough to extract the type annotation for a variable
+        declarator, even if the entire string is not syntactically valid.
+
+        Returns None if there is no valid type annotation.
+        """
+        template = f"let x: {generated}"
         captures = self.run_query(template,
             """
             (variable_declarator type: (type_annotation (_) @ann))
@@ -73,6 +115,12 @@ class TypeInference:
         return self.node_to_str(captures[0][0]) if captures else None
 
     def generate_type(self, prefix: str, suffix: str, retries: int = 3) -> str:
+        """
+        Generates a valid type annotation for the given prefix and suffix.
+        The generated text may contain other code, so we only extract the prefix
+        that is a valid type annotation. Tries up to retries times; otherwise
+        returns "any".
+        """
         for _ in range(retries):
             generated = self.model.infill(prefix, suffix)
             extracted = self.extract_type(generated)
@@ -81,6 +129,17 @@ class TypeInference:
         return "any"
 
     def infill_types(self, chunks: list[str]) -> str:
+        """
+        Given a list of chunks, infills type annotations between those chunks.
+
+        Assumes that a TypeScript file has been parsed and split up, so that the
+        chunks contain the text in between the desired type annotations.
+
+        Fills in one type at a time, from start to end. For a given type
+        annotation location, the prefix contains all the previous chunks with
+        the type annotations inserted, while the suffix concatenates the
+        remaining chunks without type annotations.
+        """
         if len(chunks) < 2:
             return "".join(chunks)
 
