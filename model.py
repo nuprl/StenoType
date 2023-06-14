@@ -22,7 +22,8 @@ class Model:
         max_tokens: int = 2048,
         temperature: float = 0.2,
         top_p: float = 0.95,
-        max_context_length: int = 500
+        max_context_length: int = 500,
+        timeout: int = 60
     ):
         self.max_fim_tokens = max_fim_tokens
         self.max_tokens = max_tokens
@@ -35,7 +36,7 @@ class Model:
             exit(2)
         endpoint = Path(ENDPOINT_FILE).read_text().strip()
 
-        self.client = Client(endpoint)
+        self.client = Client(endpoint, timeout=timeout)
 
     def prefix_ending_with_newline(self, s: str, max_length: int) -> str:
         """

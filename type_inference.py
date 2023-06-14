@@ -155,6 +155,43 @@ class TypeInference:
         return infilled_prefix
 
     def infer(self, content: str) -> str:
+        """
+        Run type inference, i.e. type annotation prediction, using
+        fill-in-the-middle to infill types. Does not generate type definitions.
+        """
         content = self.convert_arrow_funs(content)
         chunks = self.split_at_annotation_locations(content)
         return self.infill_types(chunks)
+
+    def slice_input(self, content: str, slice_length: int) -> list[str]:
+        """
+        Splits the input into slices of slice_length.
+        """
+        slices = []
+        for i in range(0, len(content), slice_length):
+            slices.append(content[i : i + slice_length])
+        return slices
+
+    def infer_with_definitions(self, content: str) -> str:
+        """
+        Generate type annotations and definitions, by providing an instruction
+        to the model.
+        """
+        # This instruction seems to work well. Need to mention "interfaces" to
+        # get interfaces. Mentioning "type definitions" isn't enough, and
+        # "classes" causes the model to generate additional classes and methods.
+        # Mentioning "TypeScript" doesn't seem to work.
+        instruction = "Add type annotations and interfaces"
+
+        # max_tokens * estimated characters per token * 95% to leave some margin
+        slice_length = int(self.model.max_tokens * 3.5 * 0.95)
+
+        # TODO: Is there a better way of slicing the input to fit into the
+        # context window? These slices can get the model to produce garbage.
+        # And sometimes the output doesn't match the slice.
+        result = []
+        slices = self.slice_input(content, slice_length)
+        for s in slices:
+            result.append(self.model.edit(s, instruction))
+
+        return "".join(result)

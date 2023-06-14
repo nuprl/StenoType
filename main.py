@@ -59,10 +59,10 @@ def main():
     # TODO: add a column with type definitions removed, or remove them on-the-fly?
     # For now, use content column (with type defs and anns) and remove on the fly
     # Later we can look try a JS dataset
-    #dataset = load_dataset(args.dataset, args.split, args.revision, args.workers)
+    dataset = load_dataset(args.dataset, args.split, args.revision, args.workers)
 
-    #first_example = dataset[0]["content_without_annotations"]
-    first_example = """
+    example = dataset[6]["content_without_annotations"]
+    example1 = """
     function aaa(x,
                  y)
                  { return x + y; }
@@ -82,15 +82,33 @@ def main():
         y = 42;
     }
     """
-    # result = typeinf.infer(first_example)
-    result = model.edit(first_example, "Add types")
+    example2 = """
+    function fib(n) {
+      if (n < 1) {
+        return 0;
+      } else {
+        return fib(n-1) + fib(n-2)
+      }
+    }
+    """
+    example3 = """
+    function distance(p1, p2) {
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        return Math.sqrt(dx*dx + dy*dy);
+    }
+    """
+    # result = typeinf.infer(example1)
+    result = typeinf.infer_with_definitions(example)
     print(result)
 
     # TODO
-    # - Do simple type inference with edit prompt
-    #   - What to do if the file is too large?
-    # - Evaluate with accuracy
-    #   - Later we can type check (using TypeScript LSP?)
+    # - Evaluation
+    #   - Iterate over dataset
+    #   - strip type annotations and definitions
+    #   - run inference
+    #   - evaluate with accuracy
+    #     - Later we can type check (using TypeScript LSP?)
     # - Then output results
 
 if __name__ == "__main__":
