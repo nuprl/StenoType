@@ -51,14 +51,15 @@ def load_dataset(dataset, split="train", revision="main", workers=1):
 def main():
     args = parse_args()
 
-    typeinf = TypeInference(Model())
+    model = Model()
+    typeinf = TypeInference(model)
 
     # For now, use TS with no type annotations
     # Still need to strip type definitions
     # TODO: add a column with type definitions removed, or remove them on-the-fly?
     # For now, use content column (with type defs and anns) and remove on the fly
     # Later we can look try a JS dataset
-    dataset = load_dataset(args.dataset, args.split, args.revision, args.workers)
+    #dataset = load_dataset(args.dataset, args.split, args.revision, args.workers)
 
     #first_example = dataset[0]["content_without_annotations"]
     first_example = """
@@ -81,11 +82,13 @@ def main():
         y = 42;
     }
     """
-    result = typeinf.infer(first_example)
+    # result = typeinf.infer(first_example)
+    result = model.edit(first_example, "Add types")
     print(result)
 
     # TODO
     # - Do simple type inference with edit prompt
+    #   - What to do if the file is too large?
     # - Evaluate with accuracy
     #   - Later we can type check (using TypeScript LSP?)
     # - Then output results
