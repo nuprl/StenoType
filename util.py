@@ -94,12 +94,19 @@ def split_at_annotation_locations(content: str) -> list[str]:
 
 def slice_input(content: str, slice_length: int) -> list[str]:
     """
-    Splits the input into slices of slice_length.
+    Splits the input into slices of at most slice_length, breaking at newlines
+    whenever possible.
     """
-    # TODO: slicing should respect newlines
     slices = []
-    for i in range(0, len(content), slice_length):
-        slices.append(content[i : i + slice_length])
+    curr_slice, curr_len = "", 0
+    for line in content.splitlines(keepends=True):
+        line_len = len(line)
+        if curr_len + line_len > slice_length:
+            slices.append(curr_slice)
+            curr_slice, curr_len = "", 0
+        curr_slice += line
+        curr_len += line_len
+    slices.append(curr_slice)
     return slices
 
 def prefix_ending_with_newline(s: str, max_length: int) -> str:

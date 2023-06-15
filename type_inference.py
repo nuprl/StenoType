@@ -98,8 +98,7 @@ class TypeInference:
         # And sometimes the output doesn't match the slice.
         # Maybe try a larger context (4K tokens)
         result = []
-        slices = util.slice_input(content, slice_length)
-        for s in slices:
+        for s in util.slice_input(content, slice_length):
             result.append(self.model.edit(s, instruction))
 
         return "".join(result)
