@@ -20,3 +20,8 @@ To run:
         --revision v1.1subset \
         --split test \
         --workers 2
+
+## Dependencies
+
+  * git
+  * Python 3

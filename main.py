@@ -1,6 +1,8 @@
-from datasets import Dataset
+from datasets import Dataset # type: ignore
 from pathlib import Path
-import argparse, datasets, os
+import argparse
+import datasets
+import os
 
 from model import Model
 from type_inference import TypeInference
@@ -15,7 +17,8 @@ def parse_args():
         "--dataset",
         type=str,
         required=True,
-        help="load the input dataset from a .parquet file, .jsonl file, or local Hugging Face dataset; otherwise tries to load from the Hugging Face Hub")
+        help="load the input dataset from a .parquet file, .jsonl file, or local" +
+             "Hugging Face dataset; otherwise tries to load from the Hugging Face Hub")
     parser.add_argument(
         "--revision",
         type=str,
@@ -62,42 +65,42 @@ def main():
     dataset = load_dataset(args.dataset, args.split, args.revision, args.workers)
 
     example = dataset[6]["content_without_annotations"]
-    example1 = """
-    function aaa(x,
-                 y)
-                 { return x + y; }
-    function abc(x, y?) { return x; }
-    function def(x = 0) { return x; }
-    function ghi({x, y}) { return x + y; }
-    let jkl = function(x, y?) { return x; }
-    let mno = function(x = 0) { return x; }
-    let pqr = function({x, y}) { return x + y; }
-    const a = x1 => x1;
-    const b = (x2) => x2;
-    const c = x3 => x3;
-    const d = (x4, y4) => x4 + y4;
-    var {e, f} = abcdef;
-    class A {
-        x;
-        y = 42;
-    }
-    """
-    example2 = """
-    function fib(n) {
-      if (n < 1) {
-        return 0;
-      } else {
-        return fib(n-1) + fib(n-2)
-      }
-    }
-    """
-    example3 = """
-    function distance(p1, p2) {
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        return Math.sqrt(dx*dx + dy*dy);
-    }
-    """
+    # example1 = """
+    # function aaa(x,
+    #              y)
+    #              { return x + y; }
+    # function abc(x, y?) { return x; }
+    # function def(x = 0) { return x; }
+    # function ghi({x, y}) { return x + y; }
+    # let jkl = function(x, y?) { return x; }
+    # let mno = function(x = 0) { return x; }
+    # let pqr = function({x, y}) { return x + y; }
+    # const a = x1 => x1;
+    # const b = (x2) => x2;
+    # const c = x3 => x3;
+    # const d = (x4, y4) => x4 + y4;
+    # var {e, f} = abcdef;
+    # class A {
+    #     x;
+    #     y = 42;
+    # }
+    # """
+    # example2 = """
+    # function fib(n) {
+    #   if (n < 1) {
+    #     return 0;
+    #   } else {
+    #     return fib(n-1) + fib(n-2)
+    #   }
+    # }
+    # """
+    # example3 = """
+    # function distance(p1, p2) {
+    #     const dx = p2.x - p1.x;
+    #     const dy = p2.y - p1.y;
+    #     return Math.sqrt(dx*dx + dy*dy);
+    # }
+    # """
     # result = typeinf.infer(example1)
     result = typeinf.infer_with_definitions(example)
     print(result)
