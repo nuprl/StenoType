@@ -25,7 +25,7 @@ class Model:
         temperature: float = 0.2,
         top_p: float = 0.95,
         max_context_length: int = 500,
-        timeout: int = 60
+        timeout: int = 600 # TODO: may need to gracefully handle timeouts
     ):
         self.max_fim_tokens = max_fim_tokens
         self.max_tokens = max_tokens

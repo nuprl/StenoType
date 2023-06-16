@@ -62,7 +62,7 @@ class TypeInference:
         total = len(chunks) - 1
         infilled_prefix = chunks[0]
         for index, chunk in tqdm(enumerate(chunks[1:]),
-                                 desc="Infilling types",
+                                 desc="Infilling",
                                  total=total,
                                  leave=False):
             infilled_prefix += ": "
