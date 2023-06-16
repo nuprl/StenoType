@@ -1,11 +1,14 @@
-from datasets import (Dataset,              # type: ignore
+from datasets import (Dataset,
                       DatasetDict,
                       IterableDataset,
                       IterableDatasetDict)
+from evaluate import EvaluationModule
 from pathlib import Path
-from typing import Any
+from transformers import PreTrainedTokenizer
+from typing import Any, Optional
 import argparse
 import datasets
+import evaluate
 import pandas as pd
 import os
 
@@ -14,6 +17,7 @@ from type_inference import TypeInference
 import util
 
 COLUMN_WITHOUT_TYPES = "content_without_types"
+OUTPUT_COLUMN = "output"
 
 def parse_args():
     cpu_count = os.cpu_count()
@@ -25,8 +29,13 @@ def parse_args():
         "--dataset",
         type=str,
         required=True,
-        help="load the input dataset from a .parquet file, .jsonl file, or local" +
+        help="load the input dataset from a .parquet file, .jsonl file, or local "
              "Hugging Face dataset; otherwise tries to load from the Hugging Face Hub")
+    parser.add_argument(
+        "--output",
+        type=str,
+        help="path to output results, can be a .parquet file, .jsonl file, or local "
+             "directory")
     parser.add_argument(
         "--revision",
         type=str,
@@ -48,7 +57,17 @@ def parse_args():
         default=cpu_count,
         help=f"maximum number of workers to use; defaults to {cpu_count}")
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    output = args.output
+    if output:
+        if Path(output).exists():
+            print(f"Output path {output} already exists, please delete, rename, or "
+                  "choose a different output path!")
+            exit(2)
+        elif not (output.endswith(".parquet") or output.endswith(".jsonl")):
+            Path(output).mkdir(parents=True, exist_ok=True)
+
+    return args
 
 def load_dataset(
     dataset: str,
@@ -76,6 +95,22 @@ def load_dataset(
                                      revision=revision,
                                      num_proc=workers)
 
+def save_dataset(
+    dataset: Dataset | DatasetDict | IterableDataset | IterableDatasetDict,
+    output: Optional[str],
+    workers: int
+) -> None:
+    if not output:
+        return
+
+    print(f"Saving results to {output}")
+    if output.endswith(".parquet"):
+        dataset.to_parquet(output)
+    elif output.endswith(".jsonl"):
+        dataset.to_json(output)
+    else:
+        dataset.save_to_disk(output, num_proc=workers)
+
 def add_column_without_types(example: dict[str, Any], column: str) -> dict[str, Any]:
     # Delete type annotations and definitions
     content = example[column]
@@ -97,44 +132,74 @@ def run_baseline(
     # Run type inference
     output = typeinf.infer_with_definitions(stripped)
 
-    # TODO: Evaluate with accuracy. Save to "accuracy" column
-    # Later we can type check (using TypeScript LSP or compiler)
-
     return {
         "hexsha": example["hexsha"],
         "max_stars_repo_path": example["max_stars_repo_path"],
         "max_stars_repo_name": example["max_stars_repo_name"],
         "content": content,
-        "output": output,
-        "accuracy": 0.0
+        OUTPUT_COLUMN: output,
     }
+
+def compute_accuracy(
+    example: dict[str, Any],
+    metric: EvaluationModule,
+    tokenizer: PreTrainedTokenizer,
+    original_column: str,
+    output_column: str
+) -> dict[str, Any]:
+    original = example[original_column]
+    output = example[output_column]
+
+    # Tokenize the original and output, and pad them to the same length
+    # NumPy tensors may be more memory efficient than Python lists
+    original_tokens, output_tokens = tokenizer([original, output],
+                                               padding=True,
+                                               return_tensors="np")["input_ids"]
+
+    example["accuracy"] = metric.compute(references=original_tokens,
+                                         predictions=output_tokens)["accuracy"]
+
+    return example
 
 def main():
     args = parse_args()
 
-    typeinf = TypeInference(Model())
+    model = Model()
+    typeinf = TypeInference(model)
     dataset = load_dataset(args.dataset, args.split, args.revision, args.workers)
 
     # Add column without types, then filter to remove empty rows (since removing
     # types may end up removing everything)
     num_examples = len(dataset)
     dataset = dataset.map(lambda e: add_column_without_types(e, args.content_column),
-                          num_proc=args.workers)
+                          num_proc=args.workers, desc="Removing types")
     dataset = dataset.filter(lambda e: not util.is_empty(e[COLUMN_WITHOUT_TYPES]),
-                             num_proc=args.workers)
+                             num_proc=args.workers, desc="Removing empty examples")
     num_removed = num_examples - len(dataset)
 
     # Run the baseline experiment
-    result = dataset.map(lambda e: run_baseline(e, typeinf, COLUMN_WITHOUT_TYPES),
-                         num_proc=args.workers)
+    dataset = dataset.map(lambda e: run_baseline(e, typeinf, COLUMN_WITHOUT_TYPES),
+                          num_proc=args.workers, desc="Inferring types")
+
+    # Evaluate the result
+    # TODO: For now, use accuracy; later we can type check (e.g. using tsc or LSP)
+    accuracy_metric = evaluate.load("accuracy")
+
+    dataset = dataset.map(lambda e: compute_accuracy(e,
+                                                     accuracy_metric,
+                                                     model.tokenizer,
+                                                     args.content_column,
+                                                     OUTPUT_COLUMN),
+                          num_proc=args.workers, desc="Evaluating results")
 
     # Print results statistics
     print("Number of examples in the original:", num_examples)
     print("Number of examples skipped:", num_removed)
-    accuracy = pd.DataFrame({"accuracy": result["accuracy"]})
+    accuracy = pd.DataFrame({"accuracy": dataset["accuracy"]})
     print(accuracy.describe())
 
-    # TODO: save result dataset to disk
+    # Save result dataset to disk
+    save_dataset(dataset, args.output, args.workers)
 
 if __name__ == "__main__":
     main()

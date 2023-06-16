@@ -1,7 +1,9 @@
 from pathlib import Path
-from text_generation import Client # type: ignore
+from text_generation import Client
+from transformers import AutoTokenizer
 
 ENDPOINT_FILE = ".STARCODER_ENDPOINT"
+MODEL_PATH = str(Path(Path(__file__).parent, "..", "models", "starcoderbase").resolve())
 
 FIM_PREFIX = "<fim_prefix>"
 FIM_MIDDLE = "<fim_middle>"
@@ -31,8 +33,11 @@ class Model:
         self.top_p = top_p
         self.max_context_length = max_context_length
 
+        self.tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+
         if not Path(ENDPOINT_FILE).exists():
-            print("Unknown API endpoint; make sure .STARCODER_ENDPOINT exists" +
+            print("Unknown API endpoint; make sure .STARCODER_ENDPOINT exists "
                   "and contains the endpoint URL.")
             exit(2)
         endpoint = Path(ENDPOINT_FILE).read_text().strip()
@@ -51,7 +56,7 @@ class Model:
             "top_p": self.top_p,
         }
         config.update(kwargs)
-        output = self.client.generate(prompt, **config).generated_text # pyre-ignore[6]
+        output = self.client.generate(prompt, **config).generated_text
         return output.removesuffix(ENDOFTEXT)
 
     def infill(self, prefix: str, suffix: str) -> str:

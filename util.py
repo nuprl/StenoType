@@ -1,8 +1,10 @@
 from pathlib import Path
 from tree_sitter import Language, Parser, Node, Tree
 
-LANGUAGES_SO = f"{Path(__file__).parent}/build/languages.so"
-TREE_SITTER_TS = f"{Path(__file__).parent}/tree-sitter-typescript/typescript"
+LANGUAGES_SO = str(Path(Path(__file__).parent, "build", "languages.so").resolve())
+TREE_SITTER_TS = str(Path(Path(__file__).parent,
+                          "tree-sitter-typescript",
+                          "typescript").resolve())
 
 Language.build_library(LANGUAGES_SO, [TREE_SITTER_TS])
 

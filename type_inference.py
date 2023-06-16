@@ -1,3 +1,4 @@
+from tqdm import tqdm
 from typing import Optional
 
 from model import Model
@@ -58,8 +59,12 @@ class TypeInference:
         if len(chunks) < 2:
             return "".join(chunks)
 
+        total = len(chunks) - 1
         infilled_prefix = chunks[0]
-        for index, chunk in enumerate(chunks[1:]):
+        for index, chunk in tqdm(enumerate(chunks[1:]),
+                                 desc="Infilling types",
+                                 total=total,
+                                 leave=False):
             infilled_prefix += ": "
             suffix = "".join(chunks[index + 1:])
 
