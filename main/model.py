@@ -6,7 +6,7 @@ from typing import Optional
 
 from util import ROOT_DIR
 
-ENDPOINT_FILE = ".STARCODER_ENDPOINT"
+ENDPOINT_FILE = str(Path(ROOT_DIR, ".STARCODER_ENDPOINT").resolve())
 MODEL_PATH = str(Path(ROOT_DIR.parent, "models", "starcoderbase").resolve())
 
 FIM_PREFIX = "<fim_prefix>"
