@@ -1,6 +1,8 @@
 from pathlib import Path
+from requests.exceptions import ReadTimeout
 from text_generation import Client
 from transformers import AutoTokenizer
+from typing import Optional
 
 from util import ROOT_DIR
 
@@ -37,7 +39,7 @@ class Model:
         temperature: float = 0.2,
         top_p: float = 0.95,
         max_context_length: int = 500,
-        timeout: int = 600, # TODO: may need to gracefully handle timeouts
+        timeout: int = 600,
     ):
         self.max_fim_tokens = max_fim_tokens
         self.max_new_tokens = max_new_tokens
@@ -56,7 +58,7 @@ class Model:
 
         self.client = Client(endpoint, timeout=timeout)
 
-    def _generate(self, prompt: str, **kwargs) -> str:
+    def _generate(self, prompt: str, **kwargs) -> Optional[str]:
         """
         Call the model to generate a completion. Use a default configuration
         that can be overridden with keyword arguments.
@@ -68,17 +70,20 @@ class Model:
             "top_p": self.top_p,
         }
         config.update(kwargs)
-        output = self.client.generate(prompt, **config).generated_text
-        return output.removesuffix(ENDOFTEXT)
+        try:
+            output = self.client.generate(prompt, **config).generated_text
+            return output.removesuffix(ENDOFTEXT)
+        except ReadTimeout:
+            return None
 
     def tokenize(self, content: str):
         # Assuming NumPy tensors consume less memory
         return self.tokenizer(content, return_tensors="np")["input_ids"][0]
 
-    def infill(self, prefix: str, suffix: str) -> str:
+    def infill(self, prefix: str, suffix: str) -> Optional[str]:
         prompt = f"{FIM_PREFIX}{prefix}{FIM_SUFFIX}{suffix}{FIM_MIDDLE}"
         return self._generate(prompt, max_new_tokens=self.max_fim_tokens)
 
-    def edit(self, code: str, instruction: str, prefix: str = "") -> str:
+    def edit(self, code: str, instruction: str, prefix: str = "") -> Optional[str]:
         prompt = f"{COMMIT_BEFORE}{code}{COMMIT_MSG}{instruction}{COMMIT_AFTER}{prefix}"
         return self._generate(prompt)

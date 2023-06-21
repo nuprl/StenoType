@@ -18,6 +18,7 @@ import util
 
 COLUMN_WITHOUT_TYPES = "content_without_types"
 OUTPUT_COLUMN = "output"
+ERROR_COLUMN = "error"
 
 def parse_args():
     cpu_count = os.cpu_count()
@@ -132,13 +133,20 @@ def run_baseline(
     # Run type inference
     output = typeinf.infer_with_definitions(stripped)
 
-    return {
+    result = {
         "hexsha": example["hexsha"],
         "max_stars_repo_path": example["max_stars_repo_path"],
         "max_stars_repo_name": example["max_stars_repo_name"],
         "content": content,
-        OUTPUT_COLUMN: output,
+        OUTPUT_COLUMN: "",
+        ERROR_COLUMN: True,
     }
+
+    if output:
+        result[OUTPUT_COLUMN] = output
+        result[ERROR_COLUMN] = False
+
+    return result
 
 def compute_accuracy(
     example: dict[str, Any],
@@ -182,17 +190,22 @@ def main():
                                         model.INPUT_SIZE),
                              num_proc=args.workers,
                              desc="Removing large examples")
-
     num_removed = num_examples - len(dataset)
 
     # Run the baseline experiment
     dataset = dataset.map(lambda e: run_baseline(e, typeinf, COLUMN_WITHOUT_TYPES),
                           num_proc=args.workers, desc="Inferring types")
 
+    # Remove examples that had errors
+    num_runs = len(dataset)
+    dataset = dataset.filter(lambda e: not e[ERROR_COLUMN],
+                             num_proc=args.workers,
+                             desc="Removing failed runs")
+    num_errors = num_runs - len(dataset)
+
     # Evaluate the result
     # TODO: For now, use accuracy; later we can type check (e.g. using tsc or LSP)
     accuracy_metric = evaluate.load("accuracy")
-
     dataset = dataset.map(lambda e: compute_accuracy(e,
                                                      accuracy_metric,
                                                      model.tokenizer,
@@ -203,6 +216,7 @@ def main():
     # Print results statistics
     print("Number of examples in the original:", num_examples)
     print("Number of examples skipped:", num_removed)
+    print("Number of examples failed:", num_errors)
     accuracy = pd.DataFrame({"accuracy": dataset["accuracy"]})
     print(accuracy.describe())
 

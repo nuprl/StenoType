@@ -39,7 +39,7 @@ class TypeInference:
         """
         for _ in range(retries):
             generated = self.model.infill(prefix, suffix)
-            extracted = self._extract_type(generated)
+            extracted = self._extract_type(generated) if generated else None
             if extracted:
                 return extracted
         return "any"
@@ -83,7 +83,7 @@ class TypeInference:
         chunks = util.split_at_annotation_locations(content)
         return self._infill_types(chunks)
 
-    def infer_with_definitions(self, content: str) -> str:
+    def infer_with_definitions(self, content: str) -> Optional[str]:
         """
         Generate type annotations and definitions, by providing an instruction
         to the model.
