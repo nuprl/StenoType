@@ -167,14 +167,22 @@ def main():
     model = Model()
     typeinf = TypeInference(model)
     dataset = load_dataset(args.dataset, args.split, args.revision, args.workers)
-
-    # Add column without types, then filter to remove empty rows (since removing
-    # types may end up removing everything)
     num_examples = len(dataset)
+
+    # Remove type annotations and definitions, add as new column
     dataset = dataset.map(lambda e: add_column_without_types(e, args.content_column),
                           num_proc=args.workers, desc="Removing types")
+
+    # Remove empty rows (since removing types may end up removing everything)
     dataset = dataset.filter(lambda e: not util.is_empty(e[COLUMN_WITHOUT_TYPES]),
                              num_proc=args.workers, desc="Removing empty examples")
+
+    # Remove examples that are too long
+    dataset = dataset.filter(lambda e: (len(model.tokenize(e[COLUMN_WITHOUT_TYPES])) <
+                                        model.INPUT_SIZE),
+                             num_proc=args.workers,
+                             desc="Removing large examples")
+
     num_removed = num_examples - len(dataset)
 
     # Run the baseline experiment

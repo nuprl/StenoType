@@ -59,11 +59,10 @@ class TypeInference:
         if len(chunks) < 2:
             return "".join(chunks)
 
-        total = len(chunks) - 1
         infilled_prefix = chunks[0]
         for index, chunk in tqdm(enumerate(chunks[1:]),
                                  desc="Infilling",
-                                 total=total,
+                                 total=len(chunks)-1,
                                  leave=False):
             infilled_prefix += ": "
             suffix = "".join(chunks[index + 1:])
@@ -95,15 +94,5 @@ class TypeInference:
         # Mentioning "TypeScript" doesn't seem to work.
         instruction = "Add type annotations and interfaces"
 
-        # max_tokens * estimated characters per token * 95% to leave some margin
-        slice_length = int(self.model.max_tokens * 3.5 * 0.95)
-
-        # TODO: Is there a better way of slicing the input to fit into the
-        # context window? These slices can get the model to produce garbage.
-        # And sometimes the output doesn't match the slice.
-        # Maybe try a larger context (4K tokens)
-        result = []
-        for s in util.slice_input(content, slice_length):
-            result.append(self.model.edit(s, instruction))
-
-        return "".join(result)
+        # Assume no slicing is needed
+        return self.model.edit(content, instruction)

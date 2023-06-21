@@ -20,17 +20,27 @@ class Model:
     This class wraps the text_generation client and provides methods for
     infilling.
     """
+    CONTEXT_SIZE = 8 * 1024 # 8K tokens
+    TYPE_PROPORTION = 0.25  # Assume input expands by 25% (added types) to get output
+
+    # Input + Output = Context; Output = (1 + Proportion) * Input
+    # Input + (1 + Proportion) * Input = Context
+    # (2 + Proportion) * Input = Context
+    # Input = Context / (2 + Proportion)
+    INPUT_SIZE = int(CONTEXT_SIZE / (2 + TYPE_PROPORTION))
+    OUTPUT_SIZE = CONTEXT_SIZE - INPUT_SIZE
+
     def __init__(
         self,
         max_fim_tokens: int = 50,
-        max_tokens: int = 2048,
+        max_new_tokens: int = OUTPUT_SIZE,
         temperature: float = 0.2,
         top_p: float = 0.95,
         max_context_length: int = 500,
-        timeout: int = 600 # TODO: may need to gracefully handle timeouts
+        timeout: int = 600, # TODO: may need to gracefully handle timeouts
     ):
         self.max_fim_tokens = max_fim_tokens
-        self.max_tokens = max_tokens
+        self.max_new_tokens = max_new_tokens
         self.temperature = temperature
         self.top_p = top_p
         self.max_context_length = max_context_length
@@ -53,13 +63,17 @@ class Model:
         """
         config = {
             "do_sample": True,
-            "max_new_tokens": self.max_tokens,
+            "max_new_tokens": self.max_new_tokens,
             "temperature": self.temperature,
             "top_p": self.top_p,
         }
         config.update(kwargs)
         output = self.client.generate(prompt, **config).generated_text
         return output.removesuffix(ENDOFTEXT)
+
+    def tokenize(self, content: str):
+        # Assuming NumPy tensors consume less memory
+        return self.tokenizer(content, return_tensors="np")["input_ids"][0]
 
     def infill(self, prefix: str, suffix: str) -> str:
         prompt = f"{FIM_PREFIX}{prefix}{FIM_SUFFIX}{suffix}{FIM_MIDDLE}"
