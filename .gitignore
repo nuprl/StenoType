@@ -1,5 +1,6 @@
 __pycache__
 build
+stenotype.egg-info
 *.parquet
 *.jsonl
 .mypy_cache

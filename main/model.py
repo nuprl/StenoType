@@ -2,8 +2,10 @@ from pathlib import Path
 from text_generation import Client
 from transformers import AutoTokenizer
 
+from util import ROOT_DIR
+
 ENDPOINT_FILE = ".STARCODER_ENDPOINT"
-MODEL_PATH = str(Path(Path(__file__).parent, "..", "models", "starcoderbase").resolve())
+MODEL_PATH = str(Path(ROOT_DIR.parent, "models", "starcoderbase").resolve())
 
 FIM_PREFIX = "<fim_prefix>"
 FIM_MIDDLE = "<fim_middle>"

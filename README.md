@@ -15,7 +15,7 @@ downloaded to `../models/starcoderbase`.
 
 To run:
 
-    python main.py \
+    python main/main.py \
         --dataset nuprl/ts-eval \
         --revision v1.1subset \
         --split test \

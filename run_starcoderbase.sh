@@ -1,15 +1,21 @@
 #!/bin/bash
 
+# Assumes starcoderbase has been downloaded to ../models/starcoderbase
+
 # use podman by default
 # override by calling script with `DOCKER=docker ./run_starcoderbase.sh`
 : ${DOCKER:=podman}
+
+# use port 8787 by default
+# override by calling script with `PORT=8080 ./run_starcoderbase.sh`
+: ${PORT:=8787}
 
 # use GPU 0 by default
 # override by calling script with `DEVICES=2 ./run_starcoderbase.sh`
 : ${DEVICES:=0}
 
 $DOCKER run \
-    -p 8787:80 \
+    -p $PORT:80 \
     -v $(pwd)/../models:/data \
     -e NVIDIA_VISIBLE_DEVICES=$DEVICES \
     -e HF_HUB_ENABLE_HF_TRANSER=0 \
