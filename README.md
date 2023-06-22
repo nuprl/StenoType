@@ -35,11 +35,13 @@ Accept the agreement for the
 
 Now you can run the experiments:
 
-    python main/main.py \
-        --dataset nuprl/ts-eval \
-        --revision v1.1subset \
-        --split test \
-        --workers 2
+```bash
+python main/main.py \
+  --dataset nuprl/ts-eval \
+  --revision v1.1subset \
+  --split test \
+  --workers 2
+```
 
 ## Dependencies
 
