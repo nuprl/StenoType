@@ -1,19 +1,24 @@
-import argparse
-import os
-
-import torch
 from accelerate import Accelerator
 from datasets import load_dataset
-from peft import LoraConfig, get_peft_model, prepare_model_for_int8_training, set_peft_model_state_dict
+from pathlib import Path
+from peft import (LoraConfig,
+                  get_peft_model,
+                  prepare_model_for_int8_training,
+                  set_peft_model_state_dict)
 from torch.utils.data import IterableDataset
 from tqdm import tqdm
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, logging, set_seed
-from transformers import TrainerCallback, TrainingArguments, TrainerState, TrainerControl
+from transformers import (AutoModelForCausalLM,
+                          AutoTokenizer,
+                          Trainer,
+                          TrainingArguments,
+                          TrainerCallback,
+                          TrainerControl,
+                          TrainerState,
+                          logging,
+                          set_seed)
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
-
-"""
-Fine-Tune StarCoder on Code Alpaca/SE
-"""
+import argparse
+import torch
 
 class SavePeftModelCallback(TrainerCallback):
     def on_save(
@@ -23,14 +28,12 @@ class SavePeftModelCallback(TrainerCallback):
         control: TrainerControl,
         **kwargs,
     ):
-        checkpoint_folder = os.path.join(args.output_dir, f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}")
-
+        checkpoint_folder = Path(args.output_dir,
+                                 f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}")
         kwargs["model"].save_pretrained(checkpoint_folder)
-
-        pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
+        pytorch_model_path = Path(checkpoint_folder, "pytorch_model.bin")
         torch.save({}, pytorch_model_path)
         return control
-
 
 class LoadBestPeftModelCallback(TrainerCallback):
     def on_train_end(
@@ -40,18 +43,24 @@ class LoadBestPeftModelCallback(TrainerCallback):
         control: TrainerControl,
         **kwargs,
     ):
-        print(f"Loading best peft model from {state.best_model_checkpoint} (score: {state.best_metric}).")
-        best_model_path = os.path.join(state.best_model_checkpoint, "adapter_model.bin")
+        print(f"Loading best peft model from {state.best_model_checkpoint} "
+              f"(score: {state.best_metric}).")
+        best_model_path = Path(state.best_model_checkpoint, "adapter_model.bin")
         adapters_weights = torch.load(best_model_path)
         model = kwargs["model"]
         set_peft_model_state_dict(model, adapters_weights)
         return control
-    
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_path", type=str, default="bigcode/large-model")
-    parser.add_argument("--dataset_name", type=str, default="HuggingFaceH4/CodeAlpaca_20K")
+    parser.add_argument(
+        "--model_path",
+        type=str,
+        default="bigcode/large-model")
+    parser.add_argument(
+        "--dataset_name",
+        type=str,
+        default="HuggingFaceH4/CodeAlpaca_20K")
     parser.add_argument("--subset", type=str)
     parser.add_argument("--split", type=str)
     parser.add_argument("--size_valid_set", type=int, default=10000)
@@ -78,8 +87,15 @@ def get_args():
 
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument("--no_fp16", action="store_false")
+
+    # TODO: --bf16 will always be true and can't be unset
     parser.add_argument("--bf16", action="store_true", default=True)
-    parser.add_argument("--no_gradient_checkpointing", action="store_false", default=False)
+
+    # TODO: --no_gradient_checkpointing will always be false and can't be set
+    parser.add_argument(
+        "--no_gradient_checkpointing",
+        action="store_false",
+        default=False)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--num_workers", type=int, default=None)
     parser.add_argument("--output_dir", type=str, default="./checkpoints")
@@ -89,8 +105,14 @@ def get_args():
 
     return parser.parse_args()
 
-
-def chars_token_ratio(dataset, tokenizer, input_column_name="prompt", output_column_name="completion", nb_examples=400):
+# TODO: replace this with an estimate that uses bootstrap
+def chars_token_ratio(
+        dataset,
+        tokenizer,
+        input_column_name="prompt",
+        output_column_name="completion",
+        nb_examples=400
+):
     """
     Estimate the average number of characters per token in the dataset.
     """
@@ -105,7 +127,6 @@ def chars_token_ratio(dataset, tokenizer, input_column_name="prompt", output_col
 
     return total_characters / total_tokens
 
-
 def print_trainable_parameters(model):
     """
     Prints the number of trainable parameters in the model.
@@ -116,29 +137,34 @@ def print_trainable_parameters(model):
         all_param += param.numel()
         if param.requires_grad:
             trainable_params += param.numel()
-    print(
-        f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
-    )
+    print(f"trainable params: {trainable_params} || "
+          f"all params: {all_param} || "
+          f"trainable%: {100 * trainable_params / all_param}")
 
-
-def prepare_sample_text(example, input_column_name="prompt", output_column_name="completion"):
+def prepare_sample_text(
+        example,
+        input_column_name="prompt",
+        output_column_name="completion"
+):
     """Prepare the text from a sample of the dataset."""
-    text = f"Question: {example[input_column_name]}\n\nAnswer: {example[output_column_name]}"
+    text = (f"Question: {example[input_column_name]}\n\n"
+            f"Answer: {example[output_column_name]}")
     return text
-
 
 class ConstantLengthDataset(IterableDataset):
     """
-    Iterable dataset that returns constant length chunks of tokens from stream of text files.
+    Iterable dataset that returns constant length chunks of tokens from stream
+    of text files.
         Args:
             tokenizer (Tokenizer): The processor used for proccessing the data.
             dataset (dataset.Dataset): Dataset with text files.
-            infinite (bool): If True the iterator is reset after dataset reaches end else stops.
+            infinite (bool): If True the iterator is reset after dataset reaches
+                end else stops.
             seq_length (int): Length of token sequences to return.
             num_of_sequences (int): Number of token sequences to keep in buffer.
-            chars_per_token (int): Number of characters per token used to estimate number of tokens in text buffer.
+            chars_per_token (int): Number of characters per token used to estimate
+                number of tokens in text buffer.
     """
-
     def __init__(
         self,
         tokenizer,
@@ -151,7 +177,9 @@ class ConstantLengthDataset(IterableDataset):
         output_column_name="completion"
     ):
         self.tokenizer = tokenizer
-        self.concat_token_id = tokenizer.eos_token_id if tokenizer.eos_token_id is not None else args.eos_token_id
+        self.concat_token_id = (tokenizer.eos_token_id
+                                if tokenizer.eos_token_id is not None
+                                else args.eos_token_id)
         self.dataset = dataset
         self.seq_length = seq_length
         self.infinite = infinite
@@ -169,7 +197,9 @@ class ConstantLengthDataset(IterableDataset):
                 if buffer_len >= self.max_buffer_size:
                     break
                 try:
-                    buffer.append(prepare_sample_text(next(iterator), self.input_column_name, self.output_column_name))
+                    buffer.append(prepare_sample_text(next(iterator),
+                                                      self.input_column_name,
+                                                      self.output_column_name))
                     buffer_len += len(buffer[-1])
                 except StopIteration:
                     if self.infinite:
@@ -190,7 +220,6 @@ class ConstantLengthDataset(IterableDataset):
                         "labels": torch.LongTensor(input_ids),
                     }
 
-
 def create_datasets(tokenizer, args):
     dataset = load_dataset(
         args.dataset_name,
@@ -208,9 +237,13 @@ def create_datasets(tokenizer, args):
     else:
         train_data = dataset["train"]
         valid_data = dataset["test"]
-        print(f"Size of the train set: {len(train_data)}. Size of the validation set: {len(valid_data)}")
+        print(f"Size of the train set: {len(train_data)}. "
+              f"Size of the validation set: {len(valid_data)}")
 
-    chars_per_token = chars_token_ratio(train_data, tokenizer, args.input_column_name, args.output_column_name)
+    chars_per_token = chars_token_ratio(train_data,
+                                        tokenizer,
+                                        args.input_column_name,
+                                        args.output_column_name)
     print(f"The character to token ratio of the dataset is: {chars_per_token:.2f}")
 
     train_dataset = ConstantLengthDataset(
@@ -232,7 +265,6 @@ def create_datasets(tokenizer, args):
         output_column_name=args.output_column_name
     )
     return train_dataset, valid_dataset
-
 
 def run_training(args, train_data, val_data):
     print("Loading the model")
@@ -286,13 +318,19 @@ def run_training(args, train_data, val_data):
         ddp_find_unused_parameters=False,
     )
 
-    trainer = Trainer(model=model, args=training_args, train_dataset=train_data, eval_dataset=val_data, callbacks=[SavePeftModelCallback, LoadBestPeftModelCallback])
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_data,
+        eval_dataset=val_data,
+        callbacks=[SavePeftModelCallback, LoadBestPeftModelCallback]
+    )
 
     print("Training...")
     trainer.train()
 
     print("Saving last checkpoint of the model")
-    model.save_pretrained(os.path.join(args.output_dir, "final_checkpoint/"))
+    model.save_pretrained(Path(args.output_dir, "final_checkpoint/"))
 
 
 def main(args):
@@ -300,12 +338,11 @@ def main(args):
     train_dataset, eval_dataset = create_datasets(tokenizer, args)
     run_training(args, train_dataset, eval_dataset)
 
-
 if __name__ == "__main__":
     args = get_args()
 
     set_seed(args.seed)
-    os.makedirs(args.output_dir, exist_ok=True)
+    Path(args.output_dir).mkdir(exist_ok=True)
 
     logging.set_verbosity_error()
 
