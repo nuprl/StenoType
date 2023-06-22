@@ -88,20 +88,12 @@ the base model if you want to run inference / evaluation. To do so, run:
 
 ```bash
 python finetune/merge_peft_adapters.py \
-  --base_model_name_or_path model_to_merge \
-  --peft_model_path model_checkpoint
-
-# Push merged model to the Hub
-python finetune/merge_peft_adapters.py \
-  --base_model_name_or_path model_to_merge \
-  --peft_model_path model_checkpoint \
-  --push_to_hub
+  --peft_model_path checkpoints/checkpoint-1000
 ```
-For example
 
-```bash
-python finetune/merge_peft_adapters.py \
-  --model_name_or_path bigcode/starcoder \
-  --peft_model_path checkpoints/checkpoint-1000 \
-  --push_to_hub
-```
+By default, the base model is assumed to be StarCoderBase, and located in
+`../../models/starcoderbase`. The model can be specified as a path or model ID,
+e.g. `--model_name_or_path bigcode/starcoder`
+
+By default, the merged model is saved to disk. Setting the `--push_to_hub`
+argument will upload the merged model to the Hugging Face Hub.
