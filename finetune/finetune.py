@@ -161,7 +161,6 @@ def print_trainable_parameters(model) -> None:
           f"all params: {all_param} || "
           f"trainable%: {100 * trainable_params / all_param}")
 
-# TODO: can this be cleaned up any more?
 class ConstantLengthDataset(TorchIterableDataset):
     """
     Iterable dataset that returns constant length chunks of tokens from stream
@@ -194,7 +193,7 @@ class ConstantLengthDataset(TorchIterableDataset):
         self.max_buffer_size = seq_length * chars_per_token * num_of_sequences
         self.data_column = data_column
 
-    def buffer_iter(self):
+    def _buffer_generator(self):
         """
         Iterate over the provided dataset: append to a buffer and yield the
         buffer once it is large enough.
@@ -222,7 +221,7 @@ class ConstantLengthDataset(TorchIterableDataset):
         Iterate over buffers: for each buffer, tokenize the inputs and pack
         them and yield one token sequence (of length seq_length) at a time.
         """
-        for buffer in self.buffer_iter():
+        for buffer in self._buffer_generator():
             # Tokenize the buffer
             tokenized_inputs = self.tokenizer(buffer)["input_ids"]
             all_token_ids = []
@@ -245,6 +244,10 @@ class ConstantLengthDataset(TorchIterableDataset):
 # TODO: maybe some of this could be refactored, we can't always just give the
 # dataset; some processing might be required
 def create_datasets(tokenizer, args):
+    """
+    Loads the dataset, creates train/valid splits, and transforms
+    into ConstantLengthDataset.
+    """
     dataset = load_dataset(
         args.dataset_name,
         data_dir=args.subset,
@@ -255,6 +258,7 @@ def create_datasets(tokenizer, args):
     )
     if args.streaming:
         print("Loading the dataset in streaming mode")
+        dataset = dataset.shuffle(buffer_size=args.shuffle_buffer, seed=args.seed)
         valid_data = dataset.take(args.size_valid_set)
         train_data = dataset.skip(args.size_valid_set)
         train_data = train_data.shuffle(buffer_size=args.shuffle_buffer, seed=args.seed)
@@ -287,6 +291,7 @@ def create_datasets(tokenizer, args):
     )
     return train_dataset, valid_dataset
 
+# TODO: need to resume from checkpoint
 def run_training(args, train_data, val_data):
     print("Loading the model")
     # disable caching mechanism when using gradient checkpointing
@@ -352,7 +357,6 @@ def run_training(args, train_data, val_data):
 
     print("Saving last checkpoint of the model")
     model.save_pretrained(Path(args.output_dir, "final_checkpoint/"))
-
 
 def main(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, use_auth_token=True)
