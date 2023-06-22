@@ -1,14 +1,19 @@
 from accelerate import Accelerator
-from datasets import load_dataset
+from datasets import (Dataset,
+                      DatasetDict,
+                      IterableDataset,
+                      IterableDatasetDict,
+                      load_dataset)
 from pathlib import Path
 from peft import (LoraConfig,
                   get_peft_model,
                   prepare_model_for_int8_training,
                   set_peft_model_state_dict)
-from torch.utils.data import IterableDataset
+from torch.utils.data import IterableDataset as TorchIterableDataset
 from tqdm import tqdm
 from transformers import (AutoModelForCausalLM,
                           AutoTokenizer,
+                          PreTrainedTokenizer,
                           Trainer,
                           TrainingArguments,
                           TrainerCallback,
@@ -18,6 +23,8 @@ from transformers import (AutoModelForCausalLM,
                           set_seed)
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 import argparse
+import numpy as np
+import scipy.stats as stats
 import torch
 
 class SavePeftModelCallback(TrainerCallback):
@@ -27,7 +34,7 @@ class SavePeftModelCallback(TrainerCallback):
         state: TrainerState,
         control: TrainerControl,
         **kwargs,
-    ):
+    ) -> TrainerControl:
         checkpoint_folder = Path(args.output_dir,
                                  f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}")
         kwargs["model"].save_pretrained(checkpoint_folder)
@@ -42,7 +49,7 @@ class LoadBestPeftModelCallback(TrainerCallback):
         state: TrainerState,
         control: TrainerControl,
         **kwargs,
-    ):
+    ) -> TrainerControl:
         print(f"Loading best peft model from {state.best_model_checkpoint} "
               f"(score: {state.best_metric}).")
         best_model_path = Path(state.best_model_checkpoint, "adapter_model.bin")
@@ -57,7 +64,7 @@ def get_args():
     parser.add_argument(
         "--model_path",
         type=str,
-        default="bigcode/large-model")
+        default="bigcode/starcoderbase")
     parser.add_argument(
         "--dataset_name",
         type=str,
@@ -74,7 +81,6 @@ def get_args():
     parser.add_argument("--max_steps", type=int, default=10000)
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=16)
-    parser.add_argument("--eos_token_id", type=int, default=49152)
 
     parser.add_argument("--lora_r", type=int, default=16)
     parser.add_argument("--lora_alpha", type=int, default=32)
@@ -105,28 +111,43 @@ def get_args():
 
     return parser.parse_args()
 
-# TODO: replace this with an estimate that uses bootstrap
-def chars_token_ratio(
-        dataset,
-        tokenizer,
-        data_column="content",
-        nb_examples=400
-):
+def tokenized_length(tokenizer: PreTrainedTokenizer, text: str) -> int:
+    # Assuming NumPy tensors consume less memory than Python lists.
+    return tokenizer(text, return_tensors="np")["input_ids"].shape[1]
+
+def estimate_chars_per_token(
+    dataset: Dataset | DatasetDict | IterableDataset | IterableDatasetDict,
+    tokenizer: AutoTokenizer,
+    content_column: str,
+    num_samples: int = 10_000,
+    shuffle_buffer_size: int = 1_000,
+    confidence_interval: float = 0.90,
+) -> float:
     """
     Estimate the average number of characters per token in the dataset.
     """
-    total_characters, total_tokens = 0, 0
-    for _, example in tqdm(zip(range(nb_examples), iter(dataset)), total=nb_examples):
-        text = example[data_column]
-        total_characters += len(text)
-        if tokenizer.is_fast:
-            total_tokens += len(tokenizer(text).tokens())
-        else:
-            total_tokens += len(tokenizer.tokenize(text))
+    shuffled_dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
+    # streaming=True produces an IterableDataset, which does not support
+    # set_transform or select, which is why we have the explicit loop below.
+    chars_per_token_list = []
+    for count, item in tqdm(
+        enumerate(shuffled_dataset), total=num_samples, desc="Estimating dataset size"
+    ):
+        if count == num_samples:
+            break
+        content = item[content_column]
+        num_tokens = tokenized_length(tokenizer, content)
+        chars_per_token_list.append(len(content) / num_tokens)
 
-    return total_characters / total_tokens
+    chars_per_token_stats = stats.bootstrap(
+        [chars_per_token_list], np.mean, confidence_level=confidence_interval
+    )
 
-def print_trainable_parameters(model):
+    low = chars_per_token_stats.confidence_interval.low
+    high = chars_per_token_stats.confidence_interval.high
+    return round((low + high) / 2, 2)
+
+def print_trainable_parameters(model) -> None:
     """
     Prints the number of trainable parameters in the model.
     """
@@ -140,71 +161,89 @@ def print_trainable_parameters(model):
           f"all params: {all_param} || "
           f"trainable%: {100 * trainable_params / all_param}")
 
-class ConstantLengthDataset(IterableDataset):
+# TODO: can this be cleaned up any more?
+class ConstantLengthDataset(TorchIterableDataset):
     """
     Iterable dataset that returns constant length chunks of tokens from stream
     of text files.
         Args:
-            tokenizer (Tokenizer): The processor used for proccessing the data.
+            tokenizer (PreTrainedTokenizer): The processor used for proccessing data.
             dataset (dataset.Dataset): Dataset with text files.
-            infinite (bool): If True the iterator is reset after dataset reaches
-                end else stops.
+            infinite (bool): If True the iterator is reset after dataset reaches end.
             seq_length (int): Length of token sequences to return.
             num_of_sequences (int): Number of token sequences to keep in buffer.
             chars_per_token (int): Number of characters per token used to estimate
                 number of tokens in text buffer.
+            data_column (str): Column in the dataset with content to read.
     """
     def __init__(
         self,
-        tokenizer,
-        dataset,
-        infinite=False,
-        seq_length=1024,
-        num_of_sequences=1024,
-        chars_per_token=3.6,
-        data_column="content",
+        tokenizer: PreTrainedTokenizer,
+        dataset: Dataset | DatasetDict | IterableDataset | IterableDatasetDict,
+        infinite: bool = False,
+        seq_length: int = 8192,
+        num_of_sequences: int = 1024,
+        chars_per_token: float = 3.6,
+        data_column: str = "content",
     ):
         self.tokenizer = tokenizer
-        self.concat_token_id = (tokenizer.eos_token_id
-                                if tokenizer.eos_token_id is not None
-                                else args.eos_token_id)
+        self.concat_token_id = tokenizer.eos_token_id
         self.dataset = dataset
-        self.seq_length = seq_length
         self.infinite = infinite
-        self.current_size = 0
+        self.seq_length = seq_length
         self.max_buffer_size = seq_length * chars_per_token * num_of_sequences
         self.data_column = data_column
 
-    def __iter__(self):
-        iterator = iter(self.dataset)
-        more_examples = True
-        while more_examples:
-            buffer, buffer_len = [], 0
-            while True:
+    def buffer_iter(self):
+        """
+        Iterate over the provided dataset: append to a buffer and yield the
+        buffer once it is large enough.
+        """
+        buffer, buffer_len = [], 0
+        while True:
+            for e in self.dataset:
+                # If buffer hits max size, yield and then reset buffer
                 if buffer_len >= self.max_buffer_size:
-                    break
-                try:
-                    buffer.append(next(iterator)[self.data_column])
-                    buffer_len += len(buffer[-1])
-                except StopIteration:
-                    if self.infinite:
-                        iterator = iter(self.dataset)
-                    else:
-                        more_examples = False
-                        break
-            tokenized_inputs = self.tokenizer(buffer, truncation=False)["input_ids"]
+                    yield buffer
+                    buffer, buffer_len = [], 0
+                # Add content from dataset to the buffer
+                to_add = e[self.data_column]
+                buffer.append(to_add)
+                buffer_len += len(to_add)
+
+            if not self.infinite:
+                # If end of dataset reached before end of buffer, and we aren't
+                # looping infinitely, yield buffer
+                yield buffer
+                break
+
+    def __iter__(self):
+        """
+        Iterate over buffers: for each buffer, tokenize the inputs and pack
+        them and yield one token sequence (of length seq_length) at a time.
+        """
+        for buffer in self.buffer_iter():
+            # Tokenize the buffer
+            tokenized_inputs = self.tokenizer(buffer)["input_ids"]
             all_token_ids = []
+
+            # Pack the inputs, separating them with self.concat_token_id
             for tokenized_input in tokenized_inputs:
                 all_token_ids.extend(tokenized_input + [self.concat_token_id])
+
+            # Iterate through all tokens, seq_length at a time, so we can yield
+            # a sequence of length seq_length
             for i in range(0, len(all_token_ids), self.seq_length):
                 input_ids = all_token_ids[i : i + self.seq_length]
+                # Only yield if we have seq_length tokens
                 if len(input_ids) == self.seq_length:
-                    self.current_size += 1
                     yield {
                         "input_ids": torch.LongTensor(input_ids),
                         "labels": torch.LongTensor(input_ids),
                     }
 
+# TODO: maybe some of this could be refactored, we can't always just give the
+# dataset; some processing might be required
 def create_datasets(tokenizer, args):
     dataset = load_dataset(
         args.dataset_name,
@@ -225,9 +264,9 @@ def create_datasets(tokenizer, args):
         print(f"Size of the train set: {len(train_data)}. "
               f"Size of the validation set: {len(valid_data)}")
 
-    chars_per_token = chars_token_ratio(train_data,
-                                        tokenizer,
-                                        args.data_column)
+    chars_per_token = estimate_chars_per_token(train_data,
+                                               tokenizer,
+                                               args.data_column)
     print(f"The character to token ratio of the dataset is: {chars_per_token:.2f}")
 
     train_dataset = ConstantLengthDataset(
