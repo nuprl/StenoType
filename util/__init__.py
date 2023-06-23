@@ -1,6 +1,8 @@
 from pathlib import Path
 from tree_sitter import Language, Parser, Node, Tree
 
+from .dataset_config import DatasetConfig # noqa: F401
+
 ROOT_DIR = Path(Path(__file__).parent).parent
 
 LANGUAGES_SO = str(Path(ROOT_DIR, "build", "languages.so").resolve())

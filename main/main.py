@@ -12,15 +12,15 @@ import evaluate
 import pandas as pd
 import os
 
-from model import Model
-from type_inference import TypeInference
+from .model import Model
+from .type_inference import TypeInference
 import util
 
 COLUMN_WITHOUT_TYPES = "content_without_types"
 OUTPUT_COLUMN = "output"
 ERROR_COLUMN = "error"
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     cpu_count = os.cpu_count()
 
     parser = argparse.ArgumentParser(

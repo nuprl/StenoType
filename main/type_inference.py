@@ -1,7 +1,7 @@
 from tqdm import tqdm
 from typing import Optional
 
-from model import Model
+from .model import Model
 import util
 
 class TypeInference:

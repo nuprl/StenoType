@@ -1,12 +1,9 @@
-from pathlib import Path
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import argparse
 import torch
 
-from util import ROOT_DIR
-
-MODEL_PATH = str(Path(ROOT_DIR.parent, "models", "starcoderbase").resolve())
+from main.model import MODEL_PATH
 
 def get_args():
     parser = argparse.ArgumentParser()
