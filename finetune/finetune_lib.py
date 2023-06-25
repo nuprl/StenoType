@@ -3,8 +3,7 @@ from dataclasses import dataclass
 from datasets import (Dataset,
                       DatasetDict,
                       IterableDataset,
-                      IterableDatasetDict,
-                      load_dataset)
+                      IterableDatasetDict)
 from pathlib import Path
 from peft import (LoraConfig,
                   get_peft_model,
@@ -20,7 +19,6 @@ from transformers import (AutoModelForCausalLM,
                           TrainerControl,
                           TrainerState)
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
-from typing import Optional
 import argparse
 import numpy as np
 import scipy.stats as stats
@@ -32,11 +30,6 @@ class DatasetConfig:
     Configuration for loading (and processing) the dataset.
 
     Args:
-        path (`str`): Path or name of dataset
-        data_dir (`str`, optional): Data directory to load
-        split (`str`): Dataset split to load. Defaults to `train`.
-        revision (`str`, optional): Dataset revision. Defaults to `None`, i.e. the
-            main branch.
         streaming (`bool`): If set to `True`, streams the dataset instead of
             downloading the entire dataset. Defaults to `False`.
         size_valid_set (`int`): If streaming, take this many elements from the dataset
@@ -46,10 +39,6 @@ class DatasetConfig:
         seq_length (`int`): Length of token sequences to use for the
             `ConstantLengthDataset`. Defaults to `2048`.
     """
-    path: str
-    data_dir: Optional[str] = None
-    split: str = "train"
-    revision: Optional[str] = None
     streaming: bool = False
     size_valid_set: int = 10_000
     shuffle_buffer: int = 1000
@@ -69,7 +58,7 @@ class WrappedTokenizer:
         self.tokenizer = tokenizer
 
     def __call__(self, text: str, *args, **kwargs):
-        """Call the underlying tokenizer."""
+        """Call the underlying tokenizer on the transformed text."""
         return self.tokenizer(self.transform(text), *args, **kwargs)
 
     @property
@@ -250,34 +239,24 @@ class ConstantLengthDataset(TorchIterableDataset):
                         "labels": torch.LongTensor(input_ids),
                     }
 
-# TODO: maybe some of this could be refactored, we can't always just give the
-# dataset; some processing might be required
 def create_datasets(
+    dataset: Dataset | DatasetDict | IterableDataset | IterableDatasetDict,
     tokenizer: WrappedTokenizer,
-    args: argparse.Namespace,
-    dataset_config: DatasetConfig
+    config: DatasetConfig,
+    seed: int
 ) -> tuple[ConstantLengthDataset, ConstantLengthDataset]:
     """
-    Loads the dataset, creates train/valid splits, and transforms
-    into ConstantLengthDataset.
+    Given a dataset, create the train/valid splits and transform into
+    ConstantLengthDataset.
     """
-    dataset = load_dataset(
-        dataset_config.path,
-        data_dir=dataset_config.data_dir,
-        split=dataset_config.split,
-        revision=dataset_config.revision,
-        use_auth_token=True,
-        num_proc=args.num_workers if not dataset_config.streaming else None,
-        streaming=dataset_config.streaming,
-    )
-    if dataset_config.streaming:
+    if config.streaming:
         print("Loading the dataset in streaming mode")
-        dataset = dataset.shuffle(buffer_size=dataset_config.shuffle_buffer,
-                                  seed=args.seed)
-        valid_data = dataset.take(dataset_config.size_valid_set)
-        train_data = dataset.skip(dataset_config.size_valid_set)
-        train_data = train_data.shuffle(buffer_size=dataset_config.shuffle_buffer,
-                                        seed=args.seed)
+        dataset = dataset.shuffle(buffer_size=config.shuffle_buffer,
+                                  seed=seed)
+        valid_data = dataset.take(config.size_valid_set)
+        train_data = dataset.skip(config.size_valid_set)
+        train_data = train_data.shuffle(buffer_size=config.shuffle_buffer,
+                                        seed=seed)
     else:
         train_data = dataset["train"]
         valid_data = dataset["test"]
@@ -286,23 +265,23 @@ def create_datasets(
 
     chars_per_token = estimate_chars_per_token(train_data,
                                                tokenizer,
-                                               dataset_config.data_column)
+                                               config.data_column)
     print(f"The character to token ratio of the dataset is: {chars_per_token:.2f}")
 
     train_dataset = ConstantLengthDataset(
         tokenizer,
         dataset=train_data,
-        seq_length=dataset_config.seq_length,
+        seq_length=config.seq_length,
         chars_per_token=chars_per_token,
-        data_column=dataset_config.data_column,
+        data_column=config.data_column,
         infinite=True,
     )
     valid_dataset = ConstantLengthDataset(
         tokenizer,
         dataset=valid_data,
-        seq_length=dataset_config.seq_length,
+        seq_length=config.seq_length,
         chars_per_token=chars_per_token,
-        data_column=dataset_config.data_column,
+        data_column=config.data_column,
         infinite=False,
     )
     return train_dataset, valid_dataset

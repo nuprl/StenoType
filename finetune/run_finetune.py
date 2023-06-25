@@ -1,3 +1,8 @@
+from datasets import (Dataset,
+                      DatasetDict,
+                      IterableDataset,
+                      IterableDatasetDict,
+                      load_dataset)
 from pathlib import Path
 from peft import LoraConfig
 from transformers import (AutoTokenizer,
@@ -55,9 +60,6 @@ LORA_CONFIG = LoraConfig(
 )
 
 DATASET_CONFIG = DatasetConfig(
-    path="nuprl/ts-training",
-    split="train",
-    revision="v1.1p1",
     streaming=True,
     size_valid_set=10_000,
     shuffle_buffer=5_000,
@@ -65,6 +67,8 @@ DATASET_CONFIG = DatasetConfig(
     seq_length=8192,
 )
 
+# TODO: Maybe instead of a WrappedTokenizer subclass, we should pass the transform
+# function. Or maybe we should wrap the dataset to handle multiple columns
 class EditFormatTokenizer(WrappedTokenizer):
     COMMIT_BEFORE = "<commit_before>"
     COMMIT_MSG = "<commit_msg>"
@@ -88,6 +92,22 @@ class EditFormatTokenizer(WrappedTokenizer):
         # TODO
         return text
 
+# TODO: maybe we can wrap the dataset here to do the transform
+# Wrap the dataset, maybe implement a few methods (shuffle, take, skip, train/test)
+# Or pass a function that takes a dataset entry and returns a string
+def get_dataset(
+    config: DatasetConfig,
+    num_workers: int
+) -> Dataset | DatasetDict | IterableDataset | IterableDatasetDict:
+    return load_dataset(
+        "nuprl/ts-training",
+        split="train",
+        revision="v1.1p1",
+        use_auth_token=True,
+        num_proc=num_workers if not config.streaming else None,
+        streaming=config.streaming,
+    )
+
 # TODO: maybe do some argparsing to override config
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -105,18 +125,17 @@ def main():
     Path(TRAINING_ARGS.output_dir).mkdir(exist_ok=True)
     logging.set_verbosity_error()
 
-
-    # TODO: load dataset, process it, pass to create_datasets
-
-
+    dataset = get_dataset(DATASET_CONFIG, args.num_workers)
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, use_auth_token=True)
     wrapped_tokenizer = EditFormatTokenizer(tokenizer)
 
+    # TODO
     exit(1)
 
-    train_dataset, eval_dataset = finetune.create_datasets(wrapped_tokenizer,
-                                                           args,
-                                                           DATASET_CONFIG)
+    train_dataset, eval_dataset = finetune.create_datasets(dataset,
+                                                           wrapped_tokenizer,
+                                                           DATASET_CONFIG,
+                                                           args.seed)
     finetune.run_training(args, TRAINING_ARGS, LORA_CONFIG, train_dataset, eval_dataset)
 
 if __name__ == "__main__":
