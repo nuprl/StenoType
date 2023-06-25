@@ -12,8 +12,8 @@ import evaluate
 import pandas as pd
 import os
 
-from .model import Model
-from .type_inference import TypeInference
+from model import Model
+from type_inference import TypeInference
 import util
 
 COLUMN_WITHOUT_TYPES = "content_without_types"

@@ -4,8 +4,5 @@ stenotype.egg-info
 *.parquet
 *.jsonl
 .mypy_cache
-.mypy.ini
-.pyre
-.pyre_configuration
 .ruff_cache
 .STARCODER_ENDPOINT

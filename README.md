@@ -36,7 +36,7 @@ Accept the agreement for the
 Now you can run the experiments:
 
 ```bash
-python main/main.py \
+python src/main.py \
   --dataset nuprl/ts-eval \
   --revision v1.1subset \
   --split test \

@@ -1,8 +1,14 @@
 from tqdm import tqdm
 from typing import Optional
 
-from .model import Model
+from model import Model
 import util
+
+# This instruction seems to work well. Need to mention "interfaces" to
+# get interfaces. Mentioning "type definitions" isn't enough, and
+# "classes" causes the model to generate additional classes and methods.
+# Mentioning "TypeScript" doesn't seem to work.
+INSTRUCTION = "Add type annotations and interfaces"
 
 class TypeInference:
     """
@@ -88,11 +94,5 @@ class TypeInference:
         Generate type annotations and definitions, by providing an instruction
         to the model.
         """
-        # This instruction seems to work well. Need to mention "interfaces" to
-        # get interfaces. Mentioning "type definitions" isn't enough, and
-        # "classes" causes the model to generate additional classes and methods.
-        # Mentioning "TypeScript" doesn't seem to work.
-        instruction = "Add type annotations and interfaces"
-
         # Assume no slicing is needed
-        return self.model.edit(content, instruction)
+        return self.model.edit(content, INSTRUCTION)

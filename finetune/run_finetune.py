@@ -1,14 +1,17 @@
 from pathlib import Path
 from peft import LoraConfig
 from transformers import (AutoTokenizer,
+                          PreTrainedTokenizer,
                           TrainingArguments,
                           logging,
                           set_seed)
 import argparse
 
-from main.model import MODEL_PATH
-from util import DatasetConfig
-import finetune
+from finetune_lib import DatasetConfig, WrappedTokenizer
+import finetune_lib as finetune
+
+MODEL_PATH = str(Path(Path(__file__).parent,
+                      "..", "..", "models", "starcoderbase").resolve())
 
 # TODO: multiply by 2 for the training format
 TOTAL_TOKENS = 7_100_000_000
@@ -62,6 +65,29 @@ DATASET_CONFIG = DatasetConfig(
     seq_length=8192,
 )
 
+class EditFormatTokenizer(WrappedTokenizer):
+    COMMIT_BEFORE = "<commit_before>"
+    COMMIT_MSG = "<commit_msg>"
+    COMMIT_AFTER = "<commit_after>"
+
+    def __init__(self, tokenizer: PreTrainedTokenizer):
+        self.tokenizer = tokenizer
+
+    def transform(self, text: str) -> str:
+        """
+        Given an input example, i.e. a string containing the contents of a
+        TypeScript file, process it and return the updated example for training.
+
+        Specifically, we process it into the StarCoder edit format, e.g.
+
+            <commit_before>{code without types}
+            <commit_msg>{instruction}
+            <commit_after>{original code}
+
+        """
+        # TODO
+        return text
+
 # TODO: maybe do some argparsing to override config
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -84,7 +110,11 @@ def main():
 
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, use_auth_token=True)
-    train_dataset, eval_dataset = finetune.create_datasets(tokenizer,
+    wrapped_tokenizer = EditFormatTokenizer(tokenizer)
+
+    exit(1)
+
+    train_dataset, eval_dataset = finetune.create_datasets(wrapped_tokenizer,
                                                            args,
                                                            DATASET_CONFIG)
     finetune.run_training(args, TRAINING_ARGS, LORA_CONFIG, train_dataset, eval_dataset)

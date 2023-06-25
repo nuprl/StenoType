@@ -1,4 +1,5 @@
 from accelerate import Accelerator
+from dataclasses import dataclass
 from datasets import (Dataset,
                       DatasetDict,
                       IterableDataset,
@@ -12,7 +13,6 @@ from peft import (LoraConfig,
 from torch.utils.data import IterableDataset as TorchIterableDataset
 from tqdm import tqdm
 from transformers import (AutoModelForCausalLM,
-                          AutoTokenizer,
                           PreTrainedTokenizer,
                           Trainer,
                           TrainingArguments,
@@ -20,12 +20,70 @@ from transformers import (AutoModelForCausalLM,
                           TrainerControl,
                           TrainerState)
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+from typing import Optional
 import argparse
 import numpy as np
 import scipy.stats as stats
 import torch
 
-from util import DatasetConfig
+@dataclass
+class DatasetConfig:
+    """
+    Configuration for loading (and processing) the dataset.
+
+    Args:
+        path (`str`): Path or name of dataset
+        data_dir (`str`, optional): Data directory to load
+        split (`str`): Dataset split to load. Defaults to `train`.
+        revision (`str`, optional): Dataset revision. Defaults to `None`, i.e. the
+            main branch.
+        streaming (`bool`): If set to `True`, streams the dataset instead of
+            downloading the entire dataset. Defaults to `False`.
+        size_valid_set (`int`): If streaming, take this many elements from the dataset
+            to use for the validation set. Defaults to `10_000`.
+        shuffle_buffer (`int`): Size of the shuffle buffer. Defaults to `1000`.
+        data_column (`str`): Column of the dataset to use. Defaults to `"content"`.
+        seq_length (`int`): Length of token sequences to use for the
+            `ConstantLengthDataset`. Defaults to `2048`.
+    """
+    path: str
+    data_dir: Optional[str] = None
+    split: str = "train"
+    revision: Optional[str] = None
+    streaming: bool = False
+    size_valid_set: int = 10_000
+    shuffle_buffer: int = 1000
+    data_column: str = "content"
+    seq_length: int = 2048
+
+class WrappedTokenizer:
+    """
+    A wrapper class for PreTrainedTokenizer, that transforms the input text
+    before calling the tokenizer.
+
+    This is useful if you need to transform the input examples in your dataset
+    (for training or fine-tuning) and don't want to preprocess the entire dataset.
+    For this use case, subclass WrappedTokenizer and override the `transform` method.
+    """
+    def __init__(self, tokenizer: PreTrainedTokenizer):
+        self.tokenizer = tokenizer
+
+    def __call__(self, text: str, *args, **kwargs):
+        """Call the underlying tokenizer."""
+        return self.tokenizer(self.transform(text), *args, **kwargs)
+
+    @property
+    def unwrap(self):
+        """Return the underlying tokenizer."""
+        return self.tokenizer
+
+    def transform(self, text: str) -> str:
+        """
+        Transform the input text.
+
+        For WrappedTokenizer, this is simply the identity function.
+        """
+        return text
 
 class SavePeftModelCallback(TrainerCallback):
     def on_save(
@@ -58,13 +116,13 @@ class LoadBestPeftModelCallback(TrainerCallback):
         set_peft_model_state_dict(model, adapters_weights)
         return control
 
-def tokenized_length(tokenizer: PreTrainedTokenizer, text: str) -> int:
+def tokenized_length(tokenizer: WrappedTokenizer, text: str) -> int:
     # Assuming NumPy tensors consume less memory than Python lists.
     return tokenizer(text, return_tensors="np")["input_ids"].shape[1]
 
 def estimate_chars_per_token(
     dataset: Dataset | DatasetDict | IterableDataset | IterableDatasetDict,
-    tokenizer: AutoTokenizer,
+    tokenizer: WrappedTokenizer,
     content_column: str,
     num_samples: int = 10_000,
     shuffle_buffer_size: int = 1_000,
@@ -113,7 +171,7 @@ class ConstantLengthDataset(TorchIterableDataset):
     Iterable dataset that returns constant length chunks of tokens from stream
     of text files.
         Args:
-            tokenizer (PreTrainedTokenizer): The processor used for proccessing data.
+            tokenizer (WrappedTokenizer): The processor used for proccessing data.
             dataset (dataset.Dataset): Dataset with text files.
             infinite (bool): If True the iterator is reset after dataset reaches end.
             seq_length (int): Length of token sequences to return.
@@ -124,7 +182,7 @@ class ConstantLengthDataset(TorchIterableDataset):
     """
     def __init__(
         self,
-        tokenizer: PreTrainedTokenizer,
+        tokenizer: WrappedTokenizer,
         dataset: Dataset | DatasetDict | IterableDataset | IterableDatasetDict,
         seq_length: int,
         chars_per_token: float,
@@ -133,13 +191,17 @@ class ConstantLengthDataset(TorchIterableDataset):
         infinite: bool = False,
     ):
         self.tokenizer = tokenizer
-        self.concat_token_id = tokenizer.eos_token_id
+        self.concat_token_id = tokenizer.unwrap.eos_token_id
         self.dataset = dataset
         self.infinite = infinite
         self.seq_length = seq_length
         self.max_buffer_size = seq_length * chars_per_token * num_of_sequences
         self.data_column = data_column
 
+    # TODO: this isn't right, probably want to tokenize first (since we need to
+    # transform), and then add the concat_token in between
+    # Right now we're packing everything and only adding the concat_token between
+    # buffers, not between inputs
     def _buffer_generator(self):
         """
         Iterate over the provided dataset: append to a buffer and yield the
@@ -191,7 +253,7 @@ class ConstantLengthDataset(TorchIterableDataset):
 # TODO: maybe some of this could be refactored, we can't always just give the
 # dataset; some processing might be required
 def create_datasets(
-    tokenizer: PreTrainedTokenizer,
+    tokenizer: WrappedTokenizer,
     args: argparse.Namespace,
     dataset_config: DatasetConfig
 ) -> tuple[ConstantLengthDataset, ConstantLengthDataset]:
@@ -262,14 +324,12 @@ def run_training(
         load_in_8bit=True,
         device_map={"": Accelerator().process_index},
     )
+
     model = prepare_model_for_int8_training(model)
-
     model = get_peft_model(model, lora_config)
-
     print_trainable_parameters(model)
 
     print("Starting main loop")
-
     trainer = Trainer(
         model=model,
         args=training_args,

@@ -5,10 +5,6 @@ scripts](https://github.com/bigcode-project/starcoder/tree/main/finetune).
 
 ## Setup
 
-See the instructions in `../README.md`. Ensure that all packages have been
-installed (by running `pip install -r requirements.txt` from the repository
-root).
-
 Install the `pytorch` version compatible with your version of CUDA. See
 instructions [here](https://pytorch.org/get-started/locally/).
 
@@ -23,6 +19,9 @@ Log into Hugging Face:
 Log into `wandb`:
 
     wandb login
+
+See the instructions in `../README.md` for downloading the
+[StarCoderBase](https://huggingface.co/bigcode/starcoder) model.
 
 ## Running fine-tuning
 
@@ -87,7 +86,7 @@ If you train a model with PEFT, you'll need to merge the adapter layers with
 the base model if you want to run inference / evaluation. To do so, run:
 
 ```bash
-python finetune/merge_peft_adapters.py \
+python merge_peft_adapters.py \
   --peft_model_path checkpoints/checkpoint-1000
 ```
 
@@ -97,3 +96,7 @@ e.g. `--model_name_or_path bigcode/starcoder`
 
 By default, the merged model is saved to disk. Setting the `--push_to_hub`
 argument will upload the merged model to the Hugging Face Hub.
+
+## Customizing the fine-tuning script
+
+TODO modify the `run_finetune.py` script with your own config
