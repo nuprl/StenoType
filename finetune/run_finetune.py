@@ -13,6 +13,7 @@ from transformers import (
     logging,
     set_seed
 )
+from typing import Optional
 import argparse
 
 from finetune_lib import DatasetConfig
@@ -67,7 +68,7 @@ LORA_CONFIG = LoraConfig(
     target_modules = ["c_proj", "c_attn", "q_attn"],
 )
 
-def get_content(element: dict) -> str:
+def get_content(element: dict) -> Optional[str]:
     """
     Given an input example, i.e. a string containing the contents of a
     TypeScript file, process it and return the updated example for training.
@@ -78,6 +79,8 @@ def get_content(element: dict) -> str:
         <commit_msg>{instruction}
         <commit_after>{original code}
 
+    Returns None if the processed element is invalid; e.g. removing all the types
+    removes the entire content.
     """
     # COMMIT_BEFORE = "<commit_before>"
     # COMMIT_MSG = "<commit_msg>"

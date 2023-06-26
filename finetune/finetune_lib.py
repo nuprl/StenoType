@@ -24,9 +24,10 @@ from transformers import (
     TrainerControl,
     TrainerState)
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+from typing import Optional
 import torch
 
-def default_get_content(element: dict) -> str:
+def default_get_content(element: dict) -> Optional[str]:
     return element["content"]
 
 @dataclass
@@ -34,8 +35,9 @@ class DatasetConfig:
     """
     Configuration for loading (and processing) the dataset.
         Args:
-            get_content (Callable[[dict], str]): Function that extracts text from
-                a dataset element, to be used for training.
+            get_content (Callable[[dict], Optional[str]]): Function that
+                extracts text from a dataset element, to be used for training.
+                Returns None if the text is invalid and should be skipped.
             streaming (`bool`): If set to `True`, streams the dataset instead of
                 downloading the entire dataset. Defaults to `False`.
             size_valid_set (`int`): If streaming, take this many elements from the
@@ -44,7 +46,7 @@ class DatasetConfig:
             seq_length (`int`): Length of token sequences to use for the
                 `ConstantLengthDataset`. Defaults to `2048`.
     """
-    get_content: Callable[[dict], str] = default_get_content
+    get_content: Callable[[dict], Optional[str]] = default_get_content
     streaming: bool = False
     size_valid_set: int = 10_000
     shuffle_buffer: int = 1000
@@ -108,8 +110,8 @@ class ConstantLengthDataset(TorchIterableDataset):
             tokenizer (PreTrainedTokenizer): The processor used for proccessing data.
             dataset (dataset.Dataset): Dataset with text files.
             seq_length (int): Length of token sequences to return.
-            get_content (Callable[[dict], str]): Function that extracts text from
-                a dataset element, to be used for training.
+            get_content (Callable[[dict], Optional[str]]): Function that
+                extracts text from a dataset element, to be used for training.
             infinite (bool): If True the iterator is reset after dataset reaches end.
     """
     def __init__(
@@ -117,7 +119,7 @@ class ConstantLengthDataset(TorchIterableDataset):
         tokenizer: PreTrainedTokenizer,
         dataset: Dataset | DatasetDict | IterableDataset | IterableDatasetDict,
         seq_length: int,
-        get_content: Callable[[dict], str],
+        get_content: Callable[[dict], Optional[str]],
         infinite: bool = False,
     ):
         self.tokenizer = tokenizer
@@ -171,8 +173,14 @@ class ConstantLengthDataset(TorchIterableDataset):
         buffer = []
         while True:
             for e in self.dataset:
+                content = self.get_content(e)
+
+                # Skip over this element if the content is not valid
+                if not content:
+                    continue
+
                 tokens = self.tokenizer(
-                    self.get_content(e),
+                    content,
                     return_attention_mask=False
                 )["input_ids"]
                 buffer.extend(tokens + [self.concat_token_id])
