@@ -1,22 +1,30 @@
-from datasets import (Dataset,
-                      DatasetDict,
-                      IterableDataset,
-                      IterableDatasetDict,
-                      load_dataset)
+from datasets import (
+    Dataset,
+    DatasetDict,
+    IterableDataset,
+    IterableDatasetDict,
+    load_dataset
+)
 from pathlib import Path
 from peft import LoraConfig
-from transformers import (AutoTokenizer,
-                          PreTrainedTokenizer,
-                          TrainingArguments,
-                          logging,
-                          set_seed)
+from transformers import (
+    AutoTokenizer,
+    TrainingArguments,
+    logging,
+    set_seed
+)
 import argparse
 
-from finetune_lib import DatasetConfig, WrappedTokenizer
+from finetune_lib import DatasetConfig
 import finetune_lib as finetune
 
-MODEL_PATH = str(Path(Path(__file__).parent,
-                      "..", "..", "models", "starcoderbase").resolve())
+MODEL_PATH = str(Path(
+    Path(__file__).parent,
+    "..",
+    "..",
+    "models",
+    "starcoderbase"
+).resolve())
 
 # TODO: multiply by 2 for the training format
 TOTAL_TOKENS = 7_100_000_000
@@ -59,44 +67,34 @@ LORA_CONFIG = LoraConfig(
     target_modules = ["c_proj", "c_attn", "q_attn"],
 )
 
+def get_content(element: dict) -> str:
+    """
+    Given an input example, i.e. a string containing the contents of a
+    TypeScript file, process it and return the updated example for training.
+
+    Specifically, we process it into the StarCoder edit format, e.g.
+
+        <commit_before>{code without types}
+        <commit_msg>{instruction}
+        <commit_after>{original code}
+
+    """
+    # COMMIT_BEFORE = "<commit_before>"
+    # COMMIT_MSG = "<commit_msg>"
+    # COMMIT_AFTER = "<commit_after>"
+
+    # TODO
+    return element["content"]
+
 DATASET_CONFIG = DatasetConfig(
+    get_content=get_content,
     streaming=True,
     size_valid_set=10_000,
     shuffle_buffer=5_000,
-    data_column="content",
     seq_length=8192,
 )
 
-# TODO: Maybe instead of a WrappedTokenizer subclass, we should pass the transform
-# function. Or maybe we should wrap the dataset to handle multiple columns
-class EditFormatTokenizer(WrappedTokenizer):
-    COMMIT_BEFORE = "<commit_before>"
-    COMMIT_MSG = "<commit_msg>"
-    COMMIT_AFTER = "<commit_after>"
-
-    def __init__(self, tokenizer: PreTrainedTokenizer):
-        self.tokenizer = tokenizer
-
-    def transform(self, text: str) -> str:
-        """
-        Given an input example, i.e. a string containing the contents of a
-        TypeScript file, process it and return the updated example for training.
-
-        Specifically, we process it into the StarCoder edit format, e.g.
-
-            <commit_before>{code without types}
-            <commit_msg>{instruction}
-            <commit_after>{original code}
-
-        """
-        # TODO
-        return text
-
-# TODO: maybe we can wrap the dataset here to do the transform
-# Wrap the dataset, maybe implement a few methods (shuffle, take, skip, train/test)
-# Or pass a function that takes a dataset entry and returns a string
 def get_dataset(
-    config: DatasetConfig,
     num_workers: int
 ) -> Dataset | DatasetDict | IterableDataset | IterableDatasetDict:
     return load_dataset(
@@ -104,39 +102,36 @@ def get_dataset(
         split="train",
         revision="v1.1p1",
         use_auth_token=True,
-        num_proc=num_workers if not config.streaming else None,
-        streaming=config.streaming,
+        num_proc=num_workers if not DATASET_CONFIG.streaming else None,
+        streaming=DATASET_CONFIG.streaming,
     )
 
-# TODO: maybe do some argparsing to override config
-def get_args() -> argparse.Namespace:
+def main():
     parser = argparse.ArgumentParser()
-
-    parser.add_argument("--model_path", type=str, default=MODEL_PATH)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--num_workers", type=int, default=None)
-
-    return parser.parse_args()
-
-def main():
-    args = get_args()
+    args = parser.parse_args()
 
     set_seed(args.seed)
     Path(TRAINING_ARGS.output_dir).mkdir(exist_ok=True)
     logging.set_verbosity_error()
 
-    dataset = get_dataset(DATASET_CONFIG, args.num_workers)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path, use_auth_token=True)
-    wrapped_tokenizer = EditFormatTokenizer(tokenizer)
+    dataset = get_dataset(args.num_workers)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, use_auth_token=True)
 
-    # TODO
-    exit(1)
-
-    train_dataset, eval_dataset = finetune.create_datasets(dataset,
-                                                           wrapped_tokenizer,
-                                                           DATASET_CONFIG,
-                                                           args.seed)
-    finetune.run_training(args, TRAINING_ARGS, LORA_CONFIG, train_dataset, eval_dataset)
+    train_dataset, eval_dataset = finetune.create_datasets(
+        dataset,
+        tokenizer,
+        DATASET_CONFIG,
+        args.seed
+    )
+    finetune.run_training(
+        MODEL_PATH,
+        TRAINING_ARGS,
+        LORA_CONFIG,
+        train_dataset,
+        eval_dataset
+    )
 
 if __name__ == "__main__":
     main()

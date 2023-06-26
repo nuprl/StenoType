@@ -1,7 +1,9 @@
-from datasets import (Dataset,
-                      DatasetDict,
-                      IterableDataset,
-                      IterableDatasetDict)
+from datasets import (
+    Dataset,
+    DatasetDict,
+    IterableDataset,
+    IterableDatasetDict
+)
 from evaluate import EvaluationModule
 from pathlib import Path
 from transformers import PreTrainedTokenizer
@@ -91,10 +93,12 @@ def load_dataset(
             return datasets.load_from_disk(dataset)
     else:
         print(f"Loading dataset {dataset} from the Hugging Face Hub...", flush=True)
-        return datasets.load_dataset(dataset,
-                                     split=split,
-                                     revision=revision,
-                                     num_proc=workers)
+        return datasets.load_dataset(
+            dataset,
+            split=split,
+            revision=revision,
+            num_proc=workers
+        )
 
 def save_dataset(
     dataset: Dataset | DatasetDict | IterableDataset | IterableDatasetDict,
@@ -160,12 +164,17 @@ def compute_accuracy(
 
     # Tokenize the original and output, and pad them to the same length
     # NumPy tensors may be more memory efficient than Python lists
-    original_tokens, output_tokens = tokenizer([original, output],
-                                               padding=True,
-                                               return_tensors="np")["input_ids"]
+    original_tokens, output_tokens = tokenizer(
+        [original, output],
+        padding=True,
+        return_attention_mask=False,
+        return_tensors="np"
+    )["input_ids"]
 
-    example["accuracy"] = metric.compute(references=original_tokens,
-                                         predictions=output_tokens)["accuracy"]
+    example["accuracy"] = metric.compute(
+        references=original_tokens,
+        predictions=output_tokens
+    )["accuracy"]
 
     return example
 
@@ -178,40 +187,56 @@ def main():
     num_examples = len(dataset)
 
     # Remove type annotations and definitions, add as new column
-    dataset = dataset.map(lambda e: add_column_without_types(e, args.content_column),
-                          num_proc=args.workers, desc="Removing types")
+    dataset = dataset.map(
+        lambda e: add_column_without_types(e, args.content_column),
+        num_proc=args.workers,
+        desc="Removing types"
+    )
 
     # Remove empty rows (since removing types may end up removing everything)
-    dataset = dataset.filter(lambda e: not util.is_empty(e[COLUMN_WITHOUT_TYPES]),
-                             num_proc=args.workers, desc="Removing empty examples")
+    dataset = dataset.filter(
+        lambda e: not util.is_empty(e[COLUMN_WITHOUT_TYPES]),
+        num_proc=args.workers,
+        desc="Removing empty examples"
+    )
 
     # Remove examples that are too long
-    dataset = dataset.filter(lambda e: (len(model.tokenize(e[COLUMN_WITHOUT_TYPES])) <
-                                        model.INPUT_SIZE),
-                             num_proc=args.workers,
-                             desc="Removing large examples")
+    dataset = dataset.filter(
+        lambda e: (len(model.tokenize(e[COLUMN_WITHOUT_TYPES])) < model.INPUT_SIZE),
+        num_proc=args.workers,
+        desc="Removing large examples"
+    )
     num_removed = num_examples - len(dataset)
 
     # Run the baseline experiment
-    dataset = dataset.map(lambda e: run_baseline(e, typeinf, COLUMN_WITHOUT_TYPES),
-                          num_proc=args.workers, desc="Inferring types")
+    dataset = dataset.map(
+        lambda e: run_baseline(e, typeinf, COLUMN_WITHOUT_TYPES),
+        num_proc=args.workers, desc="Inferring types"
+    )
 
     # Remove examples that had errors
     num_runs = len(dataset)
-    dataset = dataset.filter(lambda e: not e[ERROR_COLUMN],
-                             num_proc=args.workers,
-                             desc="Removing failed runs")
+    dataset = dataset.filter(
+        lambda e: not e[ERROR_COLUMN],
+        num_proc=args.workers,
+        desc="Removing failed runs"
+    )
     num_errors = num_runs - len(dataset)
 
     # Evaluate the result
     # TODO: For now, use accuracy; later we can type check (e.g. using tsc or LSP)
     accuracy_metric = evaluate.load("accuracy")
-    dataset = dataset.map(lambda e: compute_accuracy(e,
-                                                     accuracy_metric,
-                                                     model.tokenizer,
-                                                     args.content_column,
-                                                     OUTPUT_COLUMN),
-                          num_proc=args.workers, desc="Evaluating results")
+    dataset = dataset.map(
+        lambda e: compute_accuracy(
+            e,
+            accuracy_metric,
+            model.tokenizer,
+            args.content_column,
+            OUTPUT_COLUMN
+        ),
+        num_proc=args.workers,
+        desc="Evaluating results"
+    )
 
     # Print results statistics
     print("Number of examples in the original:", num_examples)

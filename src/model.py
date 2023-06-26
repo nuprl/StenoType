@@ -78,7 +78,9 @@ class Model:
 
     def tokenize(self, content: str):
         # Assuming NumPy tensors consume less memory
-        return self.tokenizer(content, return_tensors="np")["input_ids"][0]
+        return self.tokenizer(content,
+                              return_attention_mask=False,
+                              return_tensors="np")["input_ids"][0]
 
     def infill(self, prefix: str, suffix: str) -> Optional[str]:
         prompt = f"{FIM_PREFIX}{prefix}{FIM_SUFFIX}{suffix}{FIM_MIDDLE}"
