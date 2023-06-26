@@ -18,6 +18,7 @@ import argparse
 
 from finetune_lib import DatasetConfig
 import finetune_lib as finetune
+import util
 
 MODEL_PATH = str(Path(
     Path(__file__).parent,
@@ -79,15 +80,25 @@ def get_content(element: dict) -> Optional[str]:
         <commit_msg>{instruction}
         <commit_after>{original code}
 
-    Returns None if the processed element is invalid; e.g. removing all the types
-    removes the entire content.
+    Returns None if the processed element is invalid; i.e. removing all the types
+    removes the entire content, or there were no types to remove.
     """
-    # COMMIT_BEFORE = "<commit_before>"
-    # COMMIT_MSG = "<commit_msg>"
-    # COMMIT_AFTER = "<commit_after>"
+    COMMIT_BEFORE = "<commit_before>"
+    COMMIT_MSG = "<commit_msg>"
+    COMMIT_AFTER = "<commit_after>"
+    instruction = "Add type annotations and interfaces"
 
-    # TODO
-    return element["content"]
+    with_types = element["content"].strip()
+    without_types = util.delete_types(with_types).strip()
+
+    if util.is_empty(without_types) or with_types == without_types:
+        return None
+
+    return (
+        f"{COMMIT_BEFORE}{without_types}"
+        f"{COMMIT_MSG}{instruction}"
+        f"{COMMIT_AFTER}{with_types}"
+    )
 
 DATASET_CONFIG = DatasetConfig(
     get_content=get_content,
