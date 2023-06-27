@@ -28,9 +28,26 @@ MODEL_PATH = str(Path(
     "starcoderbase"
 ).resolve())
 
-# TODO: multiply by 2 for the training format
-TOTAL_TOKENS = 7_100_000_000
-# TODO: calculate number of steps
+# Estimated token count
+# This is based on computing the size of the training dataset and
+# estimating the bytes per token ratio
+# The original dataset has 7.1B tokens, but we multiply by 2 to account for
+# the training format
+TOTAL_TOKENS = 7_100_000_000 * 2
+
+# We pack the tokens into a ConstantLengthDataset where each example has 8K tokens
+SEQUENCE_LENGTH = 8192
+# Roughly 1.7M examples
+NUM_EXAMPLES = TOTAL_TOKENS // SEQUENCE_LENGTH
+
+# TODO: adjust these numbers
+EPOCHS = 1
+BATCH_SIZE = 1
+GRADIENT_ACCUMULATION_STEPS = 16
+
+# NOTE: This doesn't account for multiple GPUs/processes
+# 108K steps
+MAX_STEPS = (EPOCHS * NUM_EXAMPLES) // (BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS)
 
 # Arguments for the training loop
 # https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments
@@ -38,22 +55,22 @@ TRAINING_ARGS = TrainingArguments(
     output_dir="../checkpoints",
     overwrite_output_dir=True,
     evaluation_strategy="steps",
-    per_device_train_batch_size=1, # TODO: should this be larger?
-    per_device_eval_batch_size=1,
-    gradient_accumulation_steps=16,
+    per_device_train_batch_size=BATCH_SIZE,
+    per_device_eval_batch_size=BATCH_SIZE,
+    gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
     learning_rate=5e-6,
     weight_decay=0.05,
-    max_steps=10_000, # TODO, need to compute from other args and num_tokens
+    max_steps=MAX_STEPS,
     lr_scheduler_type="cosine",
-    warmup_steps=100,
-    logging_steps=100, # TODO: maybe want a larger number
-    save_steps=1000, # TODO: maybe want a larger number
-    # save_total_limit, # TODO
+    warmup_steps=1000,
+    logging_steps=1000,
+    save_steps=5000,
+    save_total_limit=5,
     bf16=True,
     fp16=False,
     local_rank=0,
     dataloader_drop_last=True,
-    eval_steps=100, # TODO: maybe want a larger number
+    eval_steps=1000,
     run_name="StarCoder-finetuned",
     report_to="wandb",
     ddp_find_unused_parameters=False,
@@ -106,7 +123,7 @@ DATASET_CONFIG = DatasetConfig(
     streaming=True,
     size_valid_set=10_000,
     shuffle_buffer=5_000,
-    seq_length=8192,
+    seq_length=SEQUENCE_LENGTH,
 )
 
 def get_dataset(
