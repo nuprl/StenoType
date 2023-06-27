@@ -36,7 +36,7 @@ TOTAL_TOKENS = 7_100_000_000
 # https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments
 TRAINING_ARGS = TrainingArguments(
     output_dir="../checkpoints",
-    # overwrite_output_dir, # TODO: may want this for resuming checkpoints
+    overwrite_output_dir=True,
     evaluation_strategy="steps",
     per_device_train_batch_size=1, # TODO: should this be larger?
     per_device_eval_batch_size=1,
@@ -57,6 +57,7 @@ TRAINING_ARGS = TrainingArguments(
     run_name="StarCoder-finetuned",
     report_to="wandb",
     ddp_find_unused_parameters=False,
+    resume_from_checkpoint=True,
     gradient_checkpointing=True,
 )
 

@@ -241,7 +241,6 @@ def create_datasets(
     )
     return train_dataset, valid_dataset
 
-# TODO: need to resume from checkpoint
 def run_training(
     model_path: str,
     training_args: TrainingArguments,
@@ -258,7 +257,6 @@ def run_training(
         load_in_8bit=True,
         device_map={"": Accelerator().process_index},
     )
-
     model = prepare_model_for_int8_training(model)
     model = get_peft_model(model, lora_config)
     print_trainable_parameters(model)
@@ -273,7 +271,7 @@ def run_training(
     )
 
     print("Training...")
-    trainer.train()
+    trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
 
     print("Saving last checkpoint of the model")
     model.save_pretrained(Path(training_args.output_dir, "final_checkpoint/"))
