@@ -20,6 +20,19 @@ from finetune_lib import DatasetConfig
 import finetune_lib as finetune
 import util
 
+"""
+Edit the constants and configuration below to use for your own fine-tuning task.
+
+Customize the `get_content` function to process a dataset element to get the
+training text. This could be as simple as returning a column (e.g. getting the
+value associated with the "content" key), or it may involve text from multiple
+columns, or it may involve doing some other processing.
+
+The `get_dataset` function allows you to customize how a dataset is loaded,
+whether it is loaded from the Hugging Face Hub, loaded from disk, or requires
+additional processing, e.g. interleaving and filtering multiple datasets.
+"""
+
 MODEL_PATH = str(Path(
     Path(__file__).parent,
     "..",
@@ -28,9 +41,12 @@ MODEL_PATH = str(Path(
     "starcoderbase"
 ).resolve())
 
-# Estimated token count
-# This is based on computing the size of the training dataset and
-# estimating the bytes per token ratio
+# We are using a very large dataset, so it's not feasible to download the whole
+# thing. Instead, we stream the dataset and use an estimate for the number of
+# tokens. This estimate was derived (in a separate script) by computing the size
+# of the dataset (just the training columns) and estimating the bytes per token
+# ratio.
+
 # The original dataset has 7.1B tokens, but we multiply by 2 to account for
 # the training format
 TOTAL_TOKENS = 7_100_000_000 * 2
@@ -45,8 +61,8 @@ EPOCHS = 1
 BATCH_SIZE = 1
 GRADIENT_ACCUMULATION_STEPS = 16
 
-# NOTE: This doesn't account for multiple GPUs/processes
-# 108K steps
+# TODO: This doesn't account for multiple GPUs/processes
+# Roughly 108K steps
 MAX_STEPS = (EPOCHS * NUM_EXAMPLES) // (BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS)
 
 # Arguments for the training loop
@@ -137,6 +153,10 @@ def get_dataset(
         num_proc=num_workers if not DATASET_CONFIG.streaming else None,
         streaming=DATASET_CONFIG.streaming,
     )
+
+"""
+Edits should not be required after this point.
+"""
 
 def main():
     parser = argparse.ArgumentParser()
