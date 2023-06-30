@@ -11,7 +11,7 @@ from pathlib import Path
 from peft import (
     LoraConfig,
     get_peft_model,
-    prepare_model_for_int8_training,
+    prepare_model_for_kbit_training,
     set_peft_model_state_dict
 )
 from torch.utils.data import IterableDataset as TorchIterableDataset
@@ -252,12 +252,11 @@ def run_training(
     # disable caching mechanism when using gradient checkpointing
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
-        use_auth_token=True,
         use_cache=not training_args.gradient_checkpointing,
         load_in_8bit=True,
         device_map={"": Accelerator().process_index},
     )
-    model = prepare_model_for_int8_training(model)
+    model = prepare_model_for_kbit_training(model)
     model = get_peft_model(model, lora_config)
     print_trainable_parameters(model)
 

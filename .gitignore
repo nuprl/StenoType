@@ -1,6 +1,7 @@
 __pycache__
 build
 stenotype.egg-info
+wandb
 *.parquet
 *.jsonl
 .mypy_cache

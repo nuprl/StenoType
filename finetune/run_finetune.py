@@ -88,9 +88,10 @@ TRAINING_ARGS = TrainingArguments(
     dataloader_drop_last=True,
     eval_steps=1000,
     run_name="StarCoder-finetuned",
+    optim="adamw_torch",
     report_to="wandb",
     ddp_find_unused_parameters=False,
-    resume_from_checkpoint=True,
+    resume_from_checkpoint=False,
     gradient_checkpointing=True,
 )
 
@@ -149,7 +150,6 @@ def get_dataset(
         "nuprl/ts-training",
         split="train",
         revision="v1.1p1",
-        use_auth_token=True,
         num_proc=num_workers if not DATASET_CONFIG.streaming else None,
         streaming=DATASET_CONFIG.streaming,
     )
@@ -169,7 +169,7 @@ def main():
     logging.set_verbosity_error()
 
     dataset = get_dataset(args.num_workers)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, use_auth_token=True)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 
     train_dataset, eval_dataset = finetune.create_datasets(
         dataset,
