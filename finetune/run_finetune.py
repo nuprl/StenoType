@@ -50,17 +50,16 @@ MODEL_PATH = str(Path(
 TOTAL_TOKENS = 7_100_000_000 * 2
 
 # We pack the tokens into a ConstantLengthDataset where each example has 8K tokens
-SEQUENCE_LENGTH = 8192
-# Roughly 1.7M examples
+SEQUENCE_LENGTH = 7300
+# Roughly 1.9M examples
 NUM_EXAMPLES = TOTAL_TOKENS // SEQUENCE_LENGTH
 
-# TODO: adjust these numbers
 EPOCHS = 1
 BATCH_SIZE = 1
 GRADIENT_ACCUMULATION_STEPS = 16
 
 # TODO: This doesn't account for multiple GPUs/processes
-# Roughly 108K steps
+# Roughly 122K steps
 MAX_STEPS = (EPOCHS * NUM_EXAMPLES) // (BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS)
 
 # Arguments for the training loop
@@ -76,15 +75,15 @@ TRAINING_ARGS = TrainingArguments(
     weight_decay=0.05,
     max_steps=MAX_STEPS,
     lr_scheduler_type="cosine",
-    warmup_steps=1000,
-    logging_steps=1000,
-    save_steps=5000,
+    warmup_steps=100,
+    logging_steps=100,
+    save_steps=1000,
     save_total_limit=5,
     bf16=True,
     fp16=False,
     local_rank=0,
     dataloader_drop_last=True,
-    eval_steps=1000,
+    eval_steps=100,
     run_name="StarCoder-finetuned",
     optim="adamw_torch",
     report_to="wandb",
