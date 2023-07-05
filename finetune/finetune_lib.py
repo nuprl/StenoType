@@ -3,9 +3,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datasets import (
     Dataset,
-    DatasetDict,
     IterableDataset,
-    IterableDatasetDict
 )
 from pathlib import Path
 from peft import (
@@ -117,7 +115,7 @@ class ConstantLengthDataset(TorchIterableDataset):
     def __init__(
         self,
         tokenizer: PreTrainedTokenizer,
-        dataset: Dataset | DatasetDict | IterableDataset | IterableDatasetDict,
+        dataset: Dataset | IterableDataset,
         seq_length: int,
         get_content: Callable[[dict], Optional[str]],
         infinite: bool = False,
@@ -199,7 +197,7 @@ class ConstantLengthDataset(TorchIterableDataset):
                 break
 
 def create_datasets(
-    dataset: Dataset | DatasetDict | IterableDataset | IterableDatasetDict,
+    dataset: Dataset | IterableDataset,
     tokenizer: PreTrainedTokenizer,
     config: DatasetConfig,
     seed: int

@@ -1,8 +1,6 @@
 from datasets import (
     Dataset,
-    DatasetDict,
     IterableDataset,
-    IterableDatasetDict,
     load_dataset
 )
 from pathlib import Path
@@ -145,7 +143,7 @@ DATASET_CONFIG = DatasetConfig(
 
 def get_dataset(
     num_workers: int
-) -> Dataset | DatasetDict | IterableDataset | IterableDatasetDict:
+) -> Dataset | IterableDataset:
     return load_dataset(
         "nuprl/ts-training",
         split="train",
