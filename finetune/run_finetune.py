@@ -13,6 +13,7 @@ from transformers import (
 )
 from typing import Optional
 import argparse
+import os
 
 from finetune_lib import DatasetConfig
 import finetune_lib as finetune
@@ -31,13 +32,11 @@ whether it is loaded from the Hugging Face Hub, loaded from disk, or requires
 additional processing, e.g. interleaving and filtering multiple datasets.
 """
 
-MODEL_PATH = str(Path(
-    Path(__file__).parent,
-    "..",
-    "..",
-    "models",
-    "starcoderbase"
-).resolve())
+if "MODELS_DIRECTORY" in os.environ:
+    MODEL_PATH = str(Path(os.environ["MODELS_DIRECTORY"], "starcoderbase").resolve())
+else:
+    MODEL_PATH = str(Path(Path(__file__).parent,
+                        "..", "..", "models", "starcoderbase").resolve())
 
 # We are using a very large dataset, so it's not feasible to download the whole
 # thing. Instead, we stream the dataset and use an estimate for the number of

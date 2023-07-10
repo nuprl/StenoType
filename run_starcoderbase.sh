@@ -1,6 +1,8 @@
 #!/bin/bash
 
-# Assumes starcoderbase has been downloaded to ../models/starcoderbase
+# Assumes starcoderbase is saved in $MODELS_DIRECTORY; if the environment
+# variable does not exist, look in ../models
+: ${MODELS_DIRECTORY:=$(pwd)/../models}
 
 # use podman by default
 # override by calling script with `DOCKER=docker ./run_starcoderbase.sh`
@@ -16,7 +18,7 @@
 
 $DOCKER run \
     -p $PORT:80 \
-    -v $(pwd)/../models:/data \
+    -v $MODELS_DIRECTORY:/data \
     -e NVIDIA_VISIBLE_DEVICES=$DEVICES \
     -e HF_HUB_ENABLE_HF_TRANSER=0 \
     ghcr.io/huggingface/text-generation-inference:0.8 \

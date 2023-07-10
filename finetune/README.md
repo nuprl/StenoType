@@ -65,7 +65,9 @@ python merge_peft_adapters.py \
   --peft_model_path ../checkpoints/checkpoint-1000
 ```
 
-By default, the base model is assumed to be StarCoderBase, and located in
+By default, the base model is assumed to be StarCoderBase. If the environment
+variable `$MODELS_DIRECTORY` exists, then the model is assumed to be located in
+`$MODELS_DIRECTORY/starcoderbase`; otherwise the location is assumed to be
 `../../models/starcoderbase`. The model can be specified as a path or model ID,
 e.g. `--model_name_or_path bigcode/starcoder`
 

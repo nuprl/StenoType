@@ -3,11 +3,16 @@ from requests.exceptions import ReadTimeout
 from text_generation import Client
 from transformers import AutoTokenizer
 from typing import Optional
+import os
 
 from util import ROOT_DIR
 
 ENDPOINT_FILE = str(Path(ROOT_DIR, ".STARCODER_ENDPOINT").resolve())
-MODEL_PATH = str(Path(ROOT_DIR.parent, "models", "starcoderbase").resolve())
+
+if "MODELS_DIRECTORY" in os.environ:
+    MODEL_PATH = str(Path(os.environ["MODELS_DIRECTORY"], "starcoderbase").resolve())
+else:
+    MODEL_PATH = str(Path(ROOT_DIR.parent, "models", "starcoderbase").resolve())
 
 FIM_PREFIX = "<fim_prefix>"
 FIM_MIDDLE = "<fim_middle>"
