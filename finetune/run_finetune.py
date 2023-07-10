@@ -78,7 +78,6 @@ TRAINING_ARGS = TrainingArguments(
     warmup_steps=100,
     logging_steps=100,
     save_steps=1000,
-    save_total_limit=5,
     bf16=True,
     fp16=False,
     local_rank=0,
@@ -88,7 +87,7 @@ TRAINING_ARGS = TrainingArguments(
     optim="adamw_torch",
     report_to="wandb",
     ddp_find_unused_parameters=False,
-    resume_from_checkpoint=False,
+    resume_from_checkpoint=False, # only set to True if there is an existing checkpoint!
     gradient_checkpointing=True,
 )
 
