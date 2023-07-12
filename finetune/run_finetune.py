@@ -75,18 +75,18 @@ TRAINING_ARGS = TrainingArguments(
     max_steps=MAX_STEPS,
     lr_scheduler_type="cosine",
     warmup_steps=100,
-    logging_steps=100,
-    save_steps=1000,
+    logging_steps=1,
+    save_steps=10,
     bf16=True,
     fp16=False,
     local_rank=0,
     dataloader_drop_last=True,
-    eval_steps=100,
+    eval_steps=5,
     run_name="StarCoder-finetuned",
     optim="adamw_torch",
     report_to="wandb",
     ddp_find_unused_parameters=False,
-    resume_from_checkpoint=False, # only set to True if there is an existing checkpoint!
+    resume_from_checkpoint=True, # only set to True if there is an existing checkpoint!
     gradient_checkpointing=True,
 )
 
