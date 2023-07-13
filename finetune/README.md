@@ -7,8 +7,19 @@ These scripts are used to fine-tune StarCoder for TypeScript type inference.
 
 ## Setup
 
+These instructions assume you are using [conda](https://docs.conda.io/en/latest/)
+and have followed the setup steps in `../README.md`.
+
+Install `cudatoolkit`:
+
+    conda install cudatoolkit
+
 Install the `pytorch` version compatible with your version of CUDA. See
-instructions [here](https://pytorch.org/get-started/locally/).
+instructions [here](https://pytorch.org/get-started/locally/). For example:
+
+    # This is an example, you may need to run a different command for
+    # your version of CUDA!
+    pip install torch --index-url https://download.pytorch.org/whl/cu118
 
 Install the packages required for fine-tuning:
 

@@ -5,11 +5,25 @@ TypeScript by predicting type annotations and generating type definitions.
 
 ## Instructions
 
-Clone the repository and install dependencies:
+Clone the repository:
 
     git clone git@github.com:nuprl/StenoType.git
     cd StenoType
     git submodule update --init --recursive
+
+We recommend using [Conda](https://docs.conda.io/en/latest/). Follow the
+instructiosn to install miniconda.
+
+Then, set up a new environment with Python 3.11, e.g.:
+
+    conda create -n myenv python=3.11
+
+Next, activate the environment:
+
+    conda activate myenv
+
+Now you can install dependencies:
+
     pip install -r requirements.txt
 
 StenoType uses the [StarCoderBase](https://huggingface.co/bigcode/starcoder)

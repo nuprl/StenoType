@@ -242,7 +242,7 @@ def create_datasets(
 def run_training(
     model_path: str,
     training_args: TrainingArguments,
-    lora_config: LoraConfig,
+    lora_config: Optional[LoraConfig],
     train_data: TorchIterableDataset,
     val_data: TorchIterableDataset,
 ):
@@ -251,11 +251,16 @@ def run_training(
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         use_cache=not training_args.gradient_checkpointing,
-        load_in_8bit=True,
-        device_map={"": Accelerator().process_index},
+        load_in_8bit=lora_config is not None,
+        device_map={"": Accelerator().process_index} if lora_config else None,
     )
-    model = prepare_model_for_kbit_training(model)
-    model = get_peft_model(model, lora_config)
+
+    callbacks = []
+    if lora_config:
+        model = prepare_model_for_kbit_training(model)
+        model = get_peft_model(model, lora_config)
+        callbacks = [SavePeftModelCallback, LoadBestPeftModelCallback]
+
     print_trainable_parameters(model)
 
     print("Starting main loop")
@@ -264,7 +269,7 @@ def run_training(
         args=training_args,
         train_dataset=train_data,
         eval_dataset=val_data,
-        callbacks=[SavePeftModelCallback, LoadBestPeftModelCallback]
+        callbacks=callbacks,
     )
 
     print("Training...")

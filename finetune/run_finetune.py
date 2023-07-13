@@ -48,8 +48,10 @@ else:
 # the training format
 TOTAL_TOKENS = 7_100_000_000 * 2
 
-# We pack the tokens into a ConstantLengthDataset where each example has 8K tokens
+# We pack the tokens into a ConstantLengthDataset,
+# where each example has SEQUENCE_LENGTH tokens
 SEQUENCE_LENGTH = 7300
+
 # Roughly 1.9M examples
 NUM_EXAMPLES = TOTAL_TOKENS // SEQUENCE_LENGTH
 
@@ -90,14 +92,17 @@ TRAINING_ARGS = TrainingArguments(
     gradient_checkpointing=True,
 )
 
-LORA_CONFIG = LoraConfig(
-    r=16,
-    lora_alpha=32,
-    lora_dropout=0.05,
-    bias="none",
-    task_type="CAUSAL_LM",
-    target_modules = ["c_proj", "c_attn", "q_attn"],
-)
+# If not using LoRA (e.g. you are using an H100 GPU which isn't supported by
+# bitsandbytes), set LORA_CONFIG to None.
+LORA_CONFIG: Optional[LoraConfig] = None
+# LORA_CONFIG = LoraConfig(
+#     r=16,
+#     lora_alpha=32,
+#     lora_dropout=0.05,
+#     bias="none",
+#     task_type="CAUSAL_LM",
+#     target_modules = ["c_proj", "c_attn", "q_attn"],
+# )
 
 def get_content(element: dict) -> Optional[str]:
     """
