@@ -48,20 +48,41 @@ else:
 # the training format
 TOTAL_TOKENS = 7_100_000_000 * 2
 
+########## StarCoder-15B on an A100 with LoRA
 # We pack the tokens into a ConstantLengthDataset,
 # where each example has SEQUENCE_LENGTH tokens
-SEQUENCE_LENGTH = 7300
+# SEQUENCE_LENGTH = 7300
+# EPOCHS = 1
+# BATCH_SIZE = 1
+# GRADIENT_ACCUMULATION_STEPS = 16
 
 # Roughly 1.9M examples
-NUM_EXAMPLES = TOTAL_TOKENS // SEQUENCE_LENGTH
+# Roughly 122K steps
+########## StarCoder-15B on an A100 with LoRA
 
+########## StarCoder-1B on an H100 without LoRA
+# We pack the tokens into a ConstantLengthDataset,
+# where each example has SEQUENCE_LENGTH tokens
+SEQUENCE_LENGTH = 8*1024
 EPOCHS = 1
-BATCH_SIZE = 1
+BATCH_SIZE = 2
 GRADIENT_ACCUMULATION_STEPS = 16
 
-# TODO: This doesn't account for multiple GPUs/processes
-# Roughly 122K steps
+# Roughly 1.7M examples
+# Roughly 54K steps
+########## StarCoder-1B on an H100 without LoRA
+
+NUM_EXAMPLES = TOTAL_TOKENS // SEQUENCE_LENGTH
+
+# LOCAL_WORLD_SIZE is --nproc-per-node when using torchrun,
+# i.e., the number of processes/GPUs to use on a single node (machine)
+if "LOCAL_WORLD_SIZE" in os.environ:
+    NUM_GPUS = int(os.environ["LOCAL_WORLD_SIZE"])
+else:
+    NUM_GPUS = 1
+
 MAX_STEPS = (EPOCHS * NUM_EXAMPLES) // (BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS)
+MAX_STEPS = MAX_STEPS // NUM_GPUS
 
 # Arguments for the training loop
 # https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments
@@ -78,17 +99,17 @@ TRAINING_ARGS = TrainingArguments(
     lr_scheduler_type="cosine",
     warmup_steps=100,
     logging_steps=1,
-    save_steps=10,
+    save_steps=100,
     bf16=True,
     fp16=False,
     local_rank=0,
     dataloader_drop_last=True,
-    eval_steps=5,
+    eval_steps=10,
     run_name="StarCoder-finetuned",
     optim="adamw_torch",
     report_to="wandb",
     ddp_find_unused_parameters=False,
-    resume_from_checkpoint=True, # only set to True if there is an existing checkpoint!
+    resume_from_checkpoint=False, # only set to True if there is an existing checkpoint!
     gradient_checkpointing=True,
 )
 

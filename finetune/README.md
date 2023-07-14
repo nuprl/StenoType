@@ -64,7 +64,16 @@ optional command-line arguments:
     --seed 0
     --num_workers 4
 
-TODO multiple GPUS
+### Multiple GPUs (on a single machine)
+
+To fine-tune on multiple machines (on a single node), run:
+
+```bash
+CUDA_VISIBLE_DEVICES=2,3 torchrun --nproc-per-node 2 run_finetune.py
+```
+
+Use `CUDA_VISIBLE_DEVICES` to select the GPUs for fine-tuning, and
+`--nproc-per-node` to specify the number of GPUs to use.
 
 ## Merging PEFT adapter layers
 
