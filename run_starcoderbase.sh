@@ -6,7 +6,7 @@
 
 # $MODELS_DIRECTORY is mounted to /data, and the default model is starcoderbase
 # override by calling the script with `MODEL_NAME=starcoder ./run_starcoderbase.sh`
-: ${MODEL_NAME:=starcoderbase}
+: ${MODEL_NAME:=starcoderbase-1b}
 
 # use podman by default
 # override by calling script with `DOCKER=docker ./run_starcoderbase.sh`
