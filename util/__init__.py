@@ -256,9 +256,9 @@ def is_empty(content: str) -> bool:
 
 def load_dataset(
     dataset: str,
-    split: str,
-    revision: str,
-    workers: int
+    split: Optional[str],
+    revision: Optional[str],
+    workers: Optional[int]
 ) -> Dataset | IterableDataset :
     """
     Load a dataset. Tries to interpret dataset as a path and loads a local file

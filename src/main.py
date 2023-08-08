@@ -135,9 +135,47 @@ def evaluate_example(
     original = example[original_column]
     output = example[OUTPUT_COLUMN]
 
-    example["accuracy"] = evaluation.compute_accuracy(tokenizer, original, output)
+    example["accuracy"] = evaluation.accuracy(tokenizer, original, output)
+    example["levenshtein"] = evaluation.levenshtein(original, output)
 
     return example
+
+def run_evaluation(
+    dataset: Dataset | IterableDataset,
+    args: argparse.Namespace,
+    model: Model,
+    num_examples: int,
+    num_removed: int
+) -> None:
+    # Remove examples that had errors
+    num_runs = len(dataset)
+    dataset = dataset.filter(
+        lambda e: not e[ERROR_COLUMN],
+        num_proc=args.workers,
+        desc="Removing failed runs"
+    )
+    num_errors = num_runs - len(dataset)
+
+    # TODO: tsc server
+    dataset = dataset.map(
+        lambda e: evaluate_example(
+            e,
+            model.tokenizer,
+            args.content_column
+        ),
+        num_proc=args.workers,
+        desc="Evaluating results"
+    )
+
+    # Print results statistics
+    print("Number of examples in the original:", num_examples)
+    print("Number of examples skipped:", num_removed)
+    print("Number of examples failed:", num_errors)
+    results = pd.DataFrame({
+        "accuracy": dataset["accuracy"],
+        "levenshtein": dataset["levenshtein"]
+    })
+    print(results.describe())
 
 def main():
     args = parse_args()
@@ -158,34 +196,7 @@ def main():
             num_proc=args.workers, desc="Inferring types"
         )
 
-        # Remove examples that had errors
-        # TODO: edit distance, tsc server
-        num_runs = len(dataset)
-        dataset = dataset.filter(
-            lambda e: not e[ERROR_COLUMN],
-            num_proc=args.workers,
-            desc="Removing failed runs"
-        )
-        num_errors = num_runs - len(dataset)
-
-        # Evaluate the result
-        dataset = dataset.map(
-            lambda e: evaluate_example(
-                e,
-                model.tokenizer,
-                args.content_column
-            ),
-            num_proc=args.workers,
-            desc="Evaluating results"
-        )
-
-        # TODO: also want other statistics besides accuracy
-        # Print results statistics
-        print("Number of examples in the original:", num_examples)
-        print("Number of examples skipped:", num_removed)
-        print("Number of examples failed:", num_errors)
-        accuracy = pd.DataFrame({"accuracy": dataset["accuracy"]})
-        print(accuracy.describe())
+        run_evaluation(dataset, args, model, num_examples, num_removed)
 
     # Save result dataset to disk
     util.save_dataset(dataset, args.output, args.workers)

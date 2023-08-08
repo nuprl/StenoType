@@ -1,14 +1,14 @@
 from transformers import PreTrainedTokenizer
-from typing import Any
 import evaluate
+import Levenshtein
 
 ACCURACY_METRIC = evaluate.load("accuracy")
 
-def compute_accuracy(
+def accuracy(
     tokenizer: PreTrainedTokenizer,
     original: str,
     output: str
-) -> dict[str, Any]:
+) -> float:
     # Tokenize the original and output, and pad them to the same length
     # NumPy tensors may be more memory efficient than Python lists
     original_tokens, output_tokens = tokenizer(
@@ -23,3 +23,5 @@ def compute_accuracy(
         predictions=output_tokens
     )["accuracy"]
 
+def levenshtein(original: str, output: str) -> float:
+    return Levenshtein.ratio(original, output)
