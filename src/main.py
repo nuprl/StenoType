@@ -1,21 +1,14 @@
-from datasets import (
-    Dataset,
-    DatasetDict,
-    IterableDataset,
-    IterableDatasetDict
-)
-from evaluate import EvaluationModule
+from datasets import Dataset, IterableDataset
 from pathlib import Path
 from transformers import PreTrainedTokenizer
-from typing import Any, Optional
+from typing import Any
 import argparse
-import datasets
-import evaluate
 import pandas as pd
 import os
 
 from model import Model
 from type_inference import TypeInference
+import evaluation
 import util
 
 COLUMN_WITHOUT_TYPES = "content_without_types"
@@ -72,50 +65,6 @@ def parse_args() -> argparse.Namespace:
 
     return args
 
-def load_dataset(
-    dataset: str,
-    split: str,
-    revision: str,
-    workers: int
-) -> Dataset | DatasetDict | IterableDataset | IterableDatasetDict:
-    """
-    Load a dataset. Tries to interpret dataset as a path and loads a local file
-    (in Parquet or JSON Lines format) or directory. If the path does not exist,
-    load the dataset from the Hugging Face Hub.
-    """
-    if Path(dataset).exists():
-        print(f"Loading dataset from {dataset} from disk...", flush=True)
-        if dataset.endswith(".parquet"):
-            return Dataset.from_parquet(dataset)
-        elif dataset.endswith(".jsonl"):
-            return Dataset.from_json(dataset)
-        else:
-            return datasets.load_from_disk(dataset)
-    else:
-        print(f"Loading dataset {dataset} from the Hugging Face Hub...", flush=True)
-        return datasets.load_dataset(
-            dataset,
-            split=split,
-            revision=revision,
-            num_proc=workers
-        )
-
-def save_dataset(
-    dataset: Dataset | DatasetDict | IterableDataset | IterableDatasetDict,
-    output: Optional[str],
-    workers: int
-) -> None:
-    if not output:
-        return
-
-    print(f"Saving results to {output}")
-    if output.endswith(".parquet"):
-        dataset.to_parquet(output)
-    elif output.endswith(".jsonl"):
-        dataset.to_json(output)
-    else:
-        dataset.save_to_disk(output, num_proc=workers)
-
 def add_column_without_types(example: dict[str, Any], column: str) -> dict[str, Any]:
     # Delete type annotations and definitions
     content = example[column]
@@ -123,14 +72,40 @@ def add_column_without_types(example: dict[str, Any], column: str) -> dict[str, 
     example[COLUMN_WITHOUT_TYPES] = stripped
     return example
 
-def run_baseline(
+def prepare_dataset(
+    dataset: Dataset | IterableDataset,
+    args: argparse.Namespace,
+    model: Model
+) -> Dataset | IterableDataset:
+    # Remove type annotations and definitions, add as new column
+    dataset = dataset.map(
+        lambda e: add_column_without_types(e, args.content_column),
+        num_proc=args.workers,
+        desc="Removing types"
+    )
+
+    # Remove empty rows (since removing types may end up removing everything)
+    dataset = dataset.filter(
+        lambda e: not util.is_empty(e[COLUMN_WITHOUT_TYPES]),
+        num_proc=args.workers,
+        desc="Removing empty examples"
+    )
+
+    # Remove examples that are too long
+    dataset = dataset.filter(
+        lambda e: (len(model.tokenize(e[COLUMN_WITHOUT_TYPES])) < model.INPUT_SIZE),
+        num_proc=args.workers,
+        desc="Removing large examples"
+    )
+
+    return dataset
+
+def infer_on_example(
     example: dict[str, Any],
     typeinf: TypeInference,
     column: str
 ) -> dict[str, Any]:
-    # TODO: For now, assume TypeScript with type annotations and definitions
-    # that we strip. Later we can preprocess the dataset or look at JavaScript
-    # datasets.
+    # For now, we're assuming TypeScript with type annotations and definitions removed.
     content = example[column]
     stripped = example[COLUMN_WITHOUT_TYPES]
 
@@ -152,29 +127,15 @@ def run_baseline(
 
     return result
 
-def compute_accuracy(
+def evaluate_example(
     example: dict[str, Any],
-    metric: EvaluationModule,
     tokenizer: PreTrainedTokenizer,
     original_column: str,
-    output_column: str
 ) -> dict[str, Any]:
     original = example[original_column]
-    output = example[output_column]
+    output = example[OUTPUT_COLUMN]
 
-    # Tokenize the original and output, and pad them to the same length
-    # NumPy tensors may be more memory efficient than Python lists
-    original_tokens, output_tokens = tokenizer(
-        [original, output],
-        padding=True,
-        return_attention_mask=False,
-        return_tensors="np"
-    )["input_ids"]
-
-    example["accuracy"] = metric.compute(
-        references=original_tokens,
-        predictions=output_tokens
-    )["accuracy"]
+    example["accuracy"] = evaluation.compute_accuracy(tokenizer, original, output)
 
     return example
 
@@ -183,70 +144,54 @@ def main():
 
     model = Model()
     typeinf = TypeInference(model)
-    dataset = load_dataset(args.dataset, args.split, args.revision, args.workers)
-    num_examples = len(dataset)
+    dataset = util.load_dataset(args.dataset, args.split, args.revision, args.workers)
 
-    # Remove type annotations and definitions, add as new column
-    dataset = dataset.map(
-        lambda e: add_column_without_types(e, args.content_column),
-        num_proc=args.workers,
-        desc="Removing types"
-    )
+    with util.timer():
+        num_examples = len(dataset)
+        dataset = prepare_dataset(dataset, args, model)
+        num_removed = num_examples - len(dataset)
 
-    # Remove empty rows (since removing types may end up removing everything)
-    dataset = dataset.filter(
-        lambda e: not util.is_empty(e[COLUMN_WITHOUT_TYPES]),
-        num_proc=args.workers,
-        desc="Removing empty examples"
-    )
+        # Run the baseline experiment
+        # TODO: start the server in a separate process, then kill it when done
+        dataset = dataset.map(
+            lambda e: infer_on_example(e, typeinf, COLUMN_WITHOUT_TYPES),
+            num_proc=args.workers, desc="Inferring types"
+        )
 
-    # Remove examples that are too long
-    dataset = dataset.filter(
-        lambda e: (len(model.tokenize(e[COLUMN_WITHOUT_TYPES])) < model.INPUT_SIZE),
-        num_proc=args.workers,
-        desc="Removing large examples"
-    )
-    num_removed = num_examples - len(dataset)
+        # Remove examples that had errors
+        # TODO: edit distance, tsc server
+        num_runs = len(dataset)
+        dataset = dataset.filter(
+            lambda e: not e[ERROR_COLUMN],
+            num_proc=args.workers,
+            desc="Removing failed runs"
+        )
+        num_errors = num_runs - len(dataset)
 
-    # Run the baseline experiment
-    dataset = dataset.map(
-        lambda e: run_baseline(e, typeinf, COLUMN_WITHOUT_TYPES),
-        num_proc=args.workers, desc="Inferring types"
-    )
+        # Evaluate the result
+        dataset = dataset.map(
+            lambda e: evaluate_example(
+                e,
+                model.tokenizer,
+                args.content_column
+            ),
+            num_proc=args.workers,
+            desc="Evaluating results"
+        )
 
-    # Remove examples that had errors
-    num_runs = len(dataset)
-    dataset = dataset.filter(
-        lambda e: not e[ERROR_COLUMN],
-        num_proc=args.workers,
-        desc="Removing failed runs"
-    )
-    num_errors = num_runs - len(dataset)
-
-    # Evaluate the result
-    # TODO: For now, use accuracy; later we can type check (e.g. using tsc or LSP)
-    accuracy_metric = evaluate.load("accuracy")
-    dataset = dataset.map(
-        lambda e: compute_accuracy(
-            e,
-            accuracy_metric,
-            model.tokenizer,
-            args.content_column,
-            OUTPUT_COLUMN
-        ),
-        num_proc=args.workers,
-        desc="Evaluating results"
-    )
-
-    # Print results statistics
-    print("Number of examples in the original:", num_examples)
-    print("Number of examples skipped:", num_removed)
-    print("Number of examples failed:", num_errors)
-    accuracy = pd.DataFrame({"accuracy": dataset["accuracy"]})
-    print(accuracy.describe())
+        # TODO: also want other statistics besides accuracy
+        # Print results statistics
+        print("Number of examples in the original:", num_examples)
+        print("Number of examples skipped:", num_removed)
+        print("Number of examples failed:", num_errors)
+        accuracy = pd.DataFrame({"accuracy": dataset["accuracy"]})
+        print(accuracy.describe())
 
     # Save result dataset to disk
-    save_dataset(dataset, args.output, args.workers)
+    util.save_dataset(dataset, args.output, args.workers)
+
+    # TODO:
+    # get rid of argument parsing, just run experiments by running script
 
 if __name__ == "__main__":
     main()
