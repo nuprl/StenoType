@@ -4,7 +4,7 @@
 # variable does not exist, look in ../models
 : ${MODELS_DIRECTORY:=$(pwd)/../models}
 
-# $MODELS_DIRECTORY is mounted to /data, and the default model is starcoderbase
+# $MODELS_DIRECTORY is mounted to /data, and the default model is starcoderbase-1b
 # override by calling the script with `MODEL_NAME=starcoder ./run_starcoderbase.sh`
 : ${MODEL_NAME:=starcoderbase-1b}
 

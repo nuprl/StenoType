@@ -6,10 +6,10 @@ import os
 import torch
 
 if "MODELS_DIRECTORY" in os.environ:
-    MODEL_PATH = str(Path(os.environ["MODELS_DIRECTORY"], "starcoderbase").resolve())
+    MODEL_PATH = str(Path(os.environ["MODELS_DIRECTORY"], "starcoderbase-1b").resolve())
 else:
     MODEL_PATH = str(Path(Path(__file__).parent,
-                        "..", "..", "models", "starcoderbase").resolve())
+                        "..", "..", "models", "starcoderbase-1b").resolve())
 
 def get_args():
     parser = argparse.ArgumentParser()

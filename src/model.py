@@ -10,9 +10,9 @@ from util import ROOT_DIR
 ENDPOINT_FILE = str(Path(ROOT_DIR, ".STARCODER_ENDPOINT").resolve())
 
 if "MODELS_DIRECTORY" in os.environ:
-    MODEL_PATH = str(Path(os.environ["MODELS_DIRECTORY"], "starcoderbase").resolve())
+    MODEL_PATH = str(Path(os.environ["MODELS_DIRECTORY"], "starcoderbase-1b").resolve())
 else:
-    MODEL_PATH = str(Path(ROOT_DIR.parent, "models", "starcoderbase").resolve())
+    MODEL_PATH = str(Path(ROOT_DIR.parent, "models", "starcoderbase-1b").resolve())
 
 FIM_PREFIX = "<fim_prefix>"
 FIM_MIDDLE = "<fim_middle>"
