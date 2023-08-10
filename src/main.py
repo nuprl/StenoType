@@ -48,6 +48,21 @@ def parse_args() -> argparse.Namespace:
         default="content",
         help="Column with the file contents; defaults to 'content'")
     parser.add_argument(
+        "--model",
+        type=str,
+        required=True,
+        help="Path to model to load")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8787,
+        help="Port for the model server")
+    parser.add_argument(
+        "--devices",
+        type=str,
+        required=True,
+        help="GPU devices to use")
+    parser.add_argument(
         "--workers",
         type=int,
         default=cpu_count,
@@ -180,7 +195,7 @@ def run_evaluation(
 def main():
     args = parse_args()
 
-    model = Model()
+    model = Model(args.model, args.port, args.devices)
     typeinf = TypeInference(model)
     dataset = util.load_dataset(args.dataset, args.split, args.revision, args.workers)
 
@@ -189,8 +204,7 @@ def main():
         dataset = prepare_dataset(dataset, args, model)
         num_removed = num_examples - len(dataset)
 
-        # Run the baseline experiment
-        # TODO: start the server in a separate process, then kill it when done
+        # Run experiments
         dataset = dataset.map(
             lambda e: infer_on_example(e, typeinf, COLUMN_WITHOUT_TYPES),
             num_proc=args.workers, desc="Inferring types"

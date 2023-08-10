@@ -5,56 +5,56 @@ TypeScript by predicting type annotations and generating type definitions.
 
 ## Instructions
 
-Clone the repository:
+1. Clone the repository:
 
-    git clone git@github.com:nuprl/StenoType.git
-    cd StenoType
-    git submodule update --init --recursive
+```bash
+git clone git@github.com:nuprl/StenoType.git
+cd StenoType
+git submodule update --init --recursive
+```
+2. Follow the instructions to set up
+   [miniconda](https://docs.conda.io/en/latest/miniconda.html).
 
-We recommend using [Conda](https://docs.conda.io/en/latest/). Follow the
-instructiosn to install miniconda.
+3. Create a conda environment with Python 3.11 and install dependencies:
 
-Then, set up a new environment with Python 3.11, e.g.:
+```bash
+conda create -n gpu python=3.11
+conda activate gpu
+pip install -r requirements.txt
+```
+4. StenoType will automatically start a container running a
+   [`text_generation`](https://github.com/huggingface/text-generation-inference)
+   server, with the
+   [StarCoderBase-1b](https://huggingface.co/bigcode/starcoderbase-1b).
+   model; however, the model must be downloaded first.
 
-    conda create -n myenv python=3.11
+   a. Ensure that you have a Hugging Face account.
 
-Next, activate the environment:
+   b. Accept the agreement for
+      [StarCoderBase-1b](https://huggingface.co/bigcode/starcoderbase-1b).
 
-    conda activate myenv
+   c. On the command line, log into Hugging Face with `huggingface-cli login`.
 
-Now you can install dependencies:
+   d. In a directory of your choosing, e.g. `../models`,
+      run `git clone git@hf.co:bigcode/starcoderbase-1b`.
 
-    pip install -r requirements.txt
+   e. To save space, you can delete the `.git` directory and
+      `pytorch_model*.bin` files, _after_ they have been converted to
+      `model*.safetensors` format. The conversion happens during the first run.
 
-StenoType uses the [StarCoderBase](https://huggingface.co/bigcode/starcoder)
-model. If you have access to a server running the
-[`text_generation`](https://github.com/huggingface/text-generation-inference)
-service, you can save the URL in the file `.STARCODER_ENDPOINT`:
+5. Accept the agreement for the
+   [ts-eval](https://huggingface.co/datasets/nuprl/ts-eval) evaluation dataset.
 
-    printf "http://127.0.0.1:8787" > .STARCODER_ENDPOINT
-
-Otherwise, you can run it locally:
-
-  1. Ensure you have a Hugging Face account.
-  2. Accept the agreement for
-     [StarCoderBase](https://huggingface.co/bigcode/starcoder).
-  3. On the command line, log into Hugging Face with `huggingface-cli login`.
-  4. In `../models`, run `git clone git@hf.co:bigcode/starcoderbase`.
-  5. To save space, you can delete the `.git` directory and `pytorch_model*.bin`
-     files, _after_ they have been converted to `model*.safetensors` format.
-  6. Run `./run_starcoderbase.sh`. This will start the server locally.
-
-Accept the agreement for the
-[ts-eval](https://huggingface.co/datasets/nuprl/ts-eval) evaluation dataset.
-
-Now you can run the experiments:
+6. Now you can run the experiments:
 
 ```bash
 python src/main.py \
   --dataset nuprl/ts-eval \
   --revision v1.1subset \
   --split test \
-  --workers 2
+  --workers 10 \
+  --model ../models/starcoderbase-1b \
+  --devices 0
 ```
 
 ## Dependencies

@@ -3,16 +3,10 @@ from requests.exceptions import ReadTimeout
 from text_generation import Client
 from transformers import AutoTokenizer
 from typing import Optional
-import os
-
-from util import ROOT_DIR
-
-ENDPOINT_FILE = str(Path(ROOT_DIR, ".STARCODER_ENDPOINT").resolve())
-
-if "MODELS_DIRECTORY" in os.environ:
-    MODEL_PATH = str(Path(os.environ["MODELS_DIRECTORY"], "starcoderbase-1b").resolve())
-else:
-    MODEL_PATH = str(Path(ROOT_DIR.parent, "models", "starcoderbase-1b").resolve())
+import shutil
+import subprocess
+import time
+import weakref
 
 FIM_PREFIX = "<fim_prefix>"
 FIM_MIDDLE = "<fim_middle>"
@@ -37,8 +31,13 @@ class Model:
     INPUT_SIZE = int(CONTEXT_SIZE / (2 + TYPE_PROPORTION))
     OUTPUT_SIZE = CONTEXT_SIZE - INPUT_SIZE
 
+    finalized = False
+
     def __init__(
         self,
+        model: str,
+        port: int,
+        devices: str,
         max_fim_tokens: int = 50,
         max_new_tokens: int = OUTPUT_SIZE,
         temperature: float = 0.2,
@@ -52,22 +51,58 @@ class Model:
         self.top_p = top_p
         self.max_context_length = max_context_length
 
-        self.tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+        self.tokenizer = AutoTokenizer.from_pretrained(Path(model).resolve())
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
-        if not Path(ENDPOINT_FILE).exists():
-            print("Unknown API endpoint; make sure .STARCODER_ENDPOINT exists "
-                  "and contains the endpoint URL.")
-            exit(2)
-        endpoint = Path(ENDPOINT_FILE).read_text().strip()
+        self._init_server(model, port, devices)
+        weakref.finalize(self, self._shutdown_server)
 
-        self.client = Client(endpoint, timeout=timeout)
+        self.client = Client(f"http://127.0.0.1:{port}", timeout=timeout)
+
+    def _init_server(self, model: str, port: int, devices: str) -> None:
+        print("Starting text-generation-inference server...")
+
+        # Try podman, then docker
+        container_exec = shutil.which("podman") or shutil.which("docker")
+        if container_exec is None:
+            raise RuntimeError("Either podman or docker must be installed")
+
+        model_paths = Path(model).resolve().parts
+        models_directory = str(Path(*model_paths[:-1]))
+        model_name = model_paths[-1]
+
+        args = [
+            container_exec, "run",
+            "-p", f"{port}:80",
+            "-v", f"{models_directory}:/data",
+            "-e", f"NVIDIA_VISIBLE_DEVICES={devices}",
+            "-e", "HF_HUB_ENABLE_HF_TRANSFER=0",
+            "ghcr.io/huggingface/text-generation-inference:0.8",
+            "--model-id", f"/data/{model_name}",
+            "--max-input-length", "8192",
+            "--max-total-tokens", "16384",
+            "--max-waiting-tokens", "65536"
+        ]
+        self.server_process: subprocess.Popen = subprocess.Popen(
+            args, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, encoding="utf-8"
+        )
+        # Hack: just sleep for 10 seconds and hope the server has started
+        time.sleep(10)
+
+    def _shutdown_server(self) -> None:
+        print("Shutting down text-generation-inference server...")
+        self.server_process.terminate()
+        self.finalized = True
 
     def _generate(self, prompt: str, **kwargs) -> Optional[str]:
         """
         Call the model to generate a completion. Use a default configuration
         that can be overridden with keyword arguments.
         """
+        if self.finalized:
+            raise RuntimeError("Cannot generate completion after Model has "
+                               "been finalized")
+
         config = {
             "do_sample": True,
             "max_new_tokens": self.max_new_tokens,

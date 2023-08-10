@@ -7,4 +7,3 @@ wandb
 *.jsonl
 .mypy_cache
 .ruff_cache
-.STARCODER_ENDPOINT
