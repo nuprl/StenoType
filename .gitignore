@@ -1,6 +1,7 @@
 __pycache__
 build
 checkpoints*
+node_modules
 results
 stenotype.egg-info
 wandb

@@ -177,6 +177,10 @@ def evaluate_example(
     example["accuracy"] = evaluation.accuracy(tokenizer, original, output)
     example["levenshtein"] = evaluation.levenshtein(original, output)
 
+    type_errors, parse_errors = evaluation.typescript(output)
+    example["type_errors"] = type_errors
+    example["parse_errors"] = parse_errors
+
     return example
 
 def run_evaluation(
@@ -196,7 +200,6 @@ def run_evaluation(
     )
     num_errors = num_runs - len(dataset)
 
-    # TODO: tsc server
     dataset = dataset.map(
         partial(
             evaluate_example,
@@ -207,13 +210,20 @@ def run_evaluation(
         desc="Evaluating results"
     )
 
-    # Print results statistics
+    num_typechecked = len([d for d in dataset["type_errors"] if d == 0])
+    pct_typechecked = num_typechecked / len(dataset)
+
+    # Print result statistics
     print("Number of examples in the original:", num_examples)
     print("Number of examples skipped:", num_removed)
     print("Number of examples failed:", num_errors)
+    print("Number of examples that type checked: "
+          f"{num_typechecked} ({pct_typechecked})")
     results = pd.DataFrame({
         "accuracy": dataset["accuracy"],
-        "levenshtein": dataset["levenshtein"]
+        "levenshtein": dataset["levenshtein"],
+        "type_errors": dataset["type_errors"],
+        "parse_errors": dataset["parse_errors"]
     })
     print(results.describe())
 

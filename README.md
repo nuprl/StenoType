@@ -12,6 +12,7 @@ git clone git@github.com:nuprl/StenoType.git
 cd StenoType
 git submodule update --init --recursive
 ```
+
 2. Follow the instructions to set up
    [miniconda](https://docs.conda.io/en/latest/miniconda.html).
 
@@ -21,7 +22,10 @@ git submodule update --init --recursive
 conda create -n gpu python=3.11
 conda activate gpu
 pip install -r requirements.txt
+conda install nodejs=18.16.0
+(cd ts && npm install)
 ```
+
 4. StenoType will automatically start a container running a
    [`text_generation`](https://github.com/huggingface/text-generation-inference)
    server, with the
