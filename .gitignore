@@ -1,6 +1,7 @@
 __pycache__
 build
 checkpoints*
+results
 stenotype.egg-info
 wandb
 *.parquet

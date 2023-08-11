@@ -1,4 +1,5 @@
 from datasets import Dataset, IterableDataset
+from functools import partial
 from pathlib import Path
 from transformers import PreTrainedTokenizer
 from typing import Any
@@ -16,7 +17,9 @@ OUTPUT_COLUMN = "output"
 ERROR_COLUMN = "error"
 
 def parse_args() -> argparse.Namespace:
-    cpu_count = os.cpu_count()
+    # os.cpu_count() is the number of CPUs on the system,
+    # not the number available to the current process
+    cpu_count = len(os.sched_getaffinity(0))
 
     parser = argparse.ArgumentParser(
         description="Runs StarCoder to infer types for JavaScript")
@@ -69,6 +72,7 @@ def parse_args() -> argparse.Namespace:
         help=f"maximum number of workers to use; defaults to {cpu_count}")
 
     args = parser.parse_args()
+
     output = args.output
     if output:
         if Path(output).exists():
@@ -89,27 +93,28 @@ def add_column_without_types(example: dict[str, Any], column: str) -> dict[str, 
 
 def prepare_dataset(
     dataset: Dataset | IterableDataset,
-    args: argparse.Namespace,
-    model: Model
+    model: Model,
+    content_column: str,
+    workers: int
 ) -> Dataset | IterableDataset:
     # Remove type annotations and definitions, add as new column
     dataset = dataset.map(
-        lambda e: add_column_without_types(e, args.content_column),
-        num_proc=args.workers,
+        partial(add_column_without_types, column=content_column),
+        num_proc=workers,
         desc="Removing types"
     )
 
     # Remove empty rows (since removing types may end up removing everything)
     dataset = dataset.filter(
         lambda e: not util.is_empty(e[COLUMN_WITHOUT_TYPES]),
-        num_proc=args.workers,
+        num_proc=workers,
         desc="Removing empty examples"
     )
 
     # Remove examples that are too long
     dataset = dataset.filter(
         lambda e: (len(model.tokenize(e[COLUMN_WITHOUT_TYPES])) < model.INPUT_SIZE),
-        num_proc=args.workers,
+        num_proc=workers,
         desc="Removing large examples"
     )
 
@@ -142,6 +147,25 @@ def infer_on_example(
 
     return result
 
+def run_experiments(
+    dataset: Dataset | IterableDataset,
+    model: Model,
+    typeinf: TypeInference,
+    content_column: str,
+    workers: int
+) -> Dataset | IterableDataset:
+    # Inference is the bottleneck, so too many workers will slow things down
+    inference_workers = min(workers, 8)
+
+    with util.timer():
+        dataset = prepare_dataset(dataset, model, content_column, workers)
+        dataset = dataset.map(
+            partial(infer_on_example, typeinf=typeinf, column=COLUMN_WITHOUT_TYPES),
+            num_proc=inference_workers, desc="Inferring types"
+        )
+
+    return dataset
+
 def evaluate_example(
     example: dict[str, Any],
     tokenizer: PreTrainedTokenizer,
@@ -157,28 +181,29 @@ def evaluate_example(
 
 def run_evaluation(
     dataset: Dataset | IterableDataset,
-    args: argparse.Namespace,
-    model: Model,
+    tokenizer: PreTrainedTokenizer,
     num_examples: int,
-    num_removed: int
-) -> None:
+    num_removed: int,
+    content_column: str,
+    workers: int
+) -> Dataset | IterableDataset:
     # Remove examples that had errors
     num_runs = len(dataset)
     dataset = dataset.filter(
         lambda e: not e[ERROR_COLUMN],
-        num_proc=args.workers,
+        num_proc=workers,
         desc="Removing failed runs"
     )
     num_errors = num_runs - len(dataset)
 
     # TODO: tsc server
     dataset = dataset.map(
-        lambda e: evaluate_example(
-            e,
-            model.tokenizer,
-            args.content_column
+        partial(
+            evaluate_example,
+            tokenizer=tokenizer,
+            original_column=content_column
         ),
-        num_proc=args.workers,
+        num_proc=workers,
         desc="Evaluating results"
     )
 
@@ -192,27 +217,28 @@ def run_evaluation(
     })
     print(results.describe())
 
+    return dataset
+
 def main():
     args = parse_args()
-
     model = Model(args.model, args.port, args.devices)
+    tokenizer = model.tokenizer
     typeinf = TypeInference(model)
     dataset = util.load_dataset(args.dataset, args.split, args.revision, args.workers)
 
-    with util.timer():
-        num_examples = len(dataset)
-        dataset = prepare_dataset(dataset, args, model)
-        num_removed = num_examples - len(dataset)
+    # Run experiments
+    num_examples = len(dataset)
+    dataset = run_experiments(
+        dataset, model, typeinf, args.content_column, args.workers
+    )
+    num_removed = num_examples - len(dataset)
 
-        # Run experiments
-        dataset = dataset.map(
-            lambda e: infer_on_example(e, typeinf, COLUMN_WITHOUT_TYPES),
-            num_proc=args.workers, desc="Inferring types"
-        )
+    # Run evaluation
+    dataset = run_evaluation(
+        dataset, tokenizer, num_examples, num_removed, args.content_column, args.workers
+    )
 
-        run_evaluation(dataset, args, model, num_examples, num_removed)
-
-    # Save result dataset to disk
+    # Save results to disk, if output was provided
     util.save_dataset(dataset, args.output, args.workers)
 
     # TODO:
