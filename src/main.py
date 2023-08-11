@@ -218,7 +218,7 @@ def run_evaluation(
     print("Number of examples skipped:", num_removed)
     print("Number of examples failed:", num_errors)
     print("Number of examples that type checked: "
-          f"{num_typechecked} ({pct_typechecked})")
+          f"{num_typechecked} ({pct_typechecked:.2%})")
     results = pd.DataFrame({
         "accuracy": dataset["accuracy"],
         "levenshtein": dataset["levenshtein"],
