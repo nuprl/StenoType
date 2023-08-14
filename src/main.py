@@ -53,7 +53,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        required=True,
         help="Path to model to load")
     parser.add_argument(
         "--port",
@@ -63,15 +62,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--devices",
         type=str,
-        required=True,
         help="GPU devices to use")
     parser.add_argument(
         "--workers",
         type=int,
         default=cpu_count,
         help=f"maximum number of workers to use; defaults to {cpu_count}")
+    parser.add_argument(
+        "--skim",
+        action="store_true",
+        help="browse through the dataset, one example at a time")
 
     args = parser.parse_args()
+
+    if not args.skim:
+        if not args.model or not args.devices:
+            print("error: the following arguments are required: --model, --devices")
+            exit(2)
 
     output = args.output
     if output:
@@ -132,6 +139,7 @@ def infer_on_example(
     # Run type inference
     output = typeinf.infer_with_definitions(stripped)
 
+    # TODO: wanted to drop unneeded columns, but this seems to keep old columns
     result = {
         "hexsha": example["hexsha"],
         "max_stars_repo_path": example["max_stars_repo_path"],
@@ -231,10 +239,27 @@ def run_evaluation(
 
 def main():
     args = parse_args()
+    dataset = util.load_dataset(args.dataset, args.split, args.revision, args.workers)
+
+    if args.skim:
+        for d in dataset:
+            print("===REPO===")
+            print(d["max_stars_repo_name"], d["max_stars_repo_path"])
+            print("===INPUT===")
+            print(d["content_without_types"])
+            print("===OUTPUT===")
+            print(d["output"])
+            print("===RESULTS===")
+            print(f"Accuracy {d['accuracy']:.2%}\n"
+                  f"Levenshtein {d['levenshtein']:.2%}\n"
+                  f"Type errors {d['type_errors']}\n"
+                  f"Parse errors {d['parse_errors']}")
+            input("===EOF===")
+        return
+
     model = Model(args.model, args.port, args.devices)
     tokenizer = model.tokenizer
     typeinf = TypeInference(model)
-    dataset = util.load_dataset(args.dataset, args.split, args.revision, args.workers)
 
     # Run experiments
     num_examples = len(dataset)
