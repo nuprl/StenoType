@@ -33,7 +33,6 @@ def levenshtein(original: str, output: str) -> float:
     return Levenshtein.ratio(original, output)
 
 def typescript(contents: str) -> tuple[int, int]:
-    # TODO: seems to return too many type errors, maybe a missing lib in the config?
     args = [
         str(Path(ROOT_DIR, "ts", "node_modules", ".bin", "ts-node").resolve()),
         str(Path(ROOT_DIR, "ts", "main.ts").resolve())
