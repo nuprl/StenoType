@@ -1,4 +1,4 @@
-import * as ts from "typescript";
+import { Diagnostic, DiagnosticWithLocation, Project, ts } from "ts-morph";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
@@ -26,9 +26,9 @@ function parseArgs(): Arguments {
 }
 
 function filter_diagnostics(
-    diagnostics: readonly ts.Diagnostic[],
-    syntaxDiag: readonly ts.Diagnostic[]
-): readonly ts.Diagnostic[] {
+    diagnostics: Diagnostic<ts.Diagnostic>[],
+    syntaxDiag: DiagnosticWithLocation[],
+): Diagnostic<ts.Diagnostic>[] {
 
     const parseErrors = new Set();
     for (const e of syntaxDiag) {
@@ -40,63 +40,16 @@ function filter_diagnostics(
 }
 
 function main() {
-    // Code adapted from:
-    // https://github.com/GammaTauAI/opentau/blob/main/ts-compiler/main.ts
-    // https://github.com/GammaTauAI/opentau/blob/main/evaluator/scripts/ts-does-parse/main.ts
-    //
-    // The ts-morph library is easier to work with than the typescript compiler
-    // API, but is also much slower.
-
     const args = parseArgs();
-    const compilerOptions = {
-        target: ts.ScriptTarget.Latest,
-        module: ts.ModuleKind.CommonJS,
-        strict: false,
-        noEmit: true,
-    };
-
-    const defaultCompilerHost = ts.createCompilerHost(compilerOptions);
-
-    const makeCompilerHost = (
-        filename: string,
-        sourceFile: ts.SourceFile
-    ): ts.CompilerHost => ({
-        getSourceFile: (name, languageVersion) => {
-            if (name === filename) {
-                return sourceFile;
-            } else {
-                return defaultCompilerHost.getSourceFile(name, languageVersion);
-            }
+    const project = new Project({
+        useInMemoryFileSystem: true,
+        compilerOptions: {
+            target: ts.ScriptTarget.Latest,
+            module: ts.ModuleKind.CommonJS,
+            strict: false,
+            noEmit: true,
         },
-        writeFile: (_filename, _data) => {},
-        getDefaultLibFileName: () =>
-            defaultCompilerHost.getDefaultLibFileName(compilerOptions),
-        useCaseSensitiveFileNames: () => false,
-        getCanonicalFileName: (filename) => filename,
-        getCurrentDirectory: () => "",
-        getNewLine: () => "\n",
-        getDirectories: () => [],
-        fileExists: () => true,
-        readFile: () => "",
     });
-
-    const createProgram = (code: string, setParentNodes = false): ts.Program => {
-        const prog = ts.createProgram({
-            rootNames: ["file.ts"],
-            options: compilerOptions,
-            host: makeCompilerHost(
-                "file.ts",
-                ts.createSourceFile(
-                    "file.ts",
-                    code,
-                    ts.ScriptTarget.Latest,
-                    setParentNodes,
-                    ts.ScriptKind.TS
-                )
-            ),
-        });
-        return prog;
-    };
 
     let buffer = "";
     process.stdin.on("data", (chunk) => {
@@ -104,9 +57,9 @@ function main() {
     });
 
     process.stdin.on("close", () => {
-        const program = createProgram(buffer);
-        const file = program.getSourceFile("file.ts")!;
-        const diagnostics = ts.getPreEmitDiagnostics(program, file);
+        const file = project.createSourceFile("file.ts", buffer);
+        const program = project.getProgram();
+        const diagnostics = file.getPreEmitDiagnostics();
         const syntaxDiag = program.getSyntacticDiagnostics(file);
 
         // PreEmitDiagnostics includes all errors, so remove parse errors
