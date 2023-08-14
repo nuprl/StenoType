@@ -23,7 +23,7 @@ conda create -n gpu python=3.11
 conda activate gpu
 pip install -r requirements.txt
 conda install nodejs=18.16.0
-(cd ts && npm install)
+(cd ts && npm install && npx tsc)
 ```
 
 4. StenoType will automatically start a container running a

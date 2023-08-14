@@ -33,10 +33,7 @@ def levenshtein(original: str, output: str) -> float:
     return Levenshtein.ratio(original, output)
 
 def typescript(contents: str) -> tuple[int, int]:
-    args = [
-        str(Path(ROOT_DIR, "ts", "node_modules", ".bin", "ts-node").resolve()),
-        str(Path(ROOT_DIR, "ts", "main.ts").resolve())
-    ]
+    args = ["node", str(Path(ROOT_DIR, "ts", "main.js").resolve())]
     result = subprocess.run(
         args, input=contents, stdout=PIPE, stderr=DEVNULL, encoding="utf-8"
     )
