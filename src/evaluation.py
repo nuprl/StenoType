@@ -90,7 +90,8 @@ def run_evaluation(
         desc="Evaluating results"
     )
 
-    num_typechecked = len([d for d in dataset["type_errors"] if d == 0])
+    num_typechecked = len([d for d in dataset
+                           if d["type_errors"] == 0 and d["parse_errors"] == 0])
     pct_typechecked = num_typechecked / len(dataset)
 
     # Print result statistics
