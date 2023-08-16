@@ -1,16 +1,20 @@
+from datasets import Dataset, IterableDataset
+from functools import partial
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from transformers import PreTrainedTokenizer
+from typing import Any
 import evaluate
 import json
 import Levenshtein
+import pandas as pd
 import subprocess
 
 from util import ROOT_DIR
 
 ACCURACY_METRIC = evaluate.load("accuracy")
 
-def accuracy(
+def _accuracy(
     tokenizer: PreTrainedTokenizer,
     original: str,
     output: str
@@ -29,10 +33,10 @@ def accuracy(
         predictions=output_tokens
     )["accuracy"]
 
-def levenshtein(original: str, output: str) -> float:
+def _levenshtein(original: str, output: str) -> float:
     return Levenshtein.ratio(original, output)
 
-def typescript(contents: str) -> tuple[int, int]:
+def _typescript(contents: str) -> tuple[int, int]:
     args = ["node", str(Path(ROOT_DIR, "ts", "main.js").resolve())]
     result = subprocess.run(
         args, input=contents, stdout=PIPE, stderr=DEVNULL, encoding="utf-8"
@@ -40,3 +44,67 @@ def typescript(contents: str) -> tuple[int, int]:
     data = json.loads(result.stdout)
 
     return data["type_errors"], data["parse_errors"]
+
+def _evaluate_example(
+    example: dict[str, Any],
+    tokenizer: PreTrainedTokenizer,
+    original_column: str,
+    output_column: str
+) -> dict[str, Any]:
+    original = example[original_column]
+    output = example[output_column]
+
+    example["accuracy"] = _accuracy(tokenizer, original, output)
+    example["levenshtein"] = _levenshtein(original, output)
+    example["type_errors"], example["parse_errors"] = _typescript(output)
+
+    return example
+
+def run_evaluation(
+    dataset: Dataset | IterableDataset,
+    tokenizer: PreTrainedTokenizer,
+    num_examples: int,
+    num_removed: int,
+    content_column: str,
+    output_column: str,
+    error_column: str,
+    workers: int
+) -> Dataset | IterableDataset:
+    # Remove examples that had errors
+    num_runs = len(dataset)
+    dataset = dataset.filter(
+        lambda e: not e[error_column],
+        num_proc=workers,
+        desc="Removing failed runs"
+    )
+    num_errors = num_runs - len(dataset)
+
+    dataset = dataset.map(
+        partial(
+            _evaluate_example,
+            tokenizer=tokenizer,
+            original_column=content_column,
+            output_column=output_column
+        ),
+        num_proc=workers,
+        desc="Evaluating results"
+    )
+
+    num_typechecked = len([d for d in dataset["type_errors"] if d == 0])
+    pct_typechecked = num_typechecked / len(dataset)
+
+    # Print result statistics
+    print("Number of examples in the original:", num_examples)
+    print("Number of examples skipped:", num_removed)
+    print("Number of examples failed:", num_errors)
+    print("Number of examples that type checked: "
+          f"{num_typechecked} ({pct_typechecked:.2%})")
+    results = pd.DataFrame({
+        "accuracy": dataset["accuracy"],
+        "levenshtein": dataset["levenshtein"],
+        "type_errors": dataset["type_errors"],
+        "parse_errors": dataset["parse_errors"]
+    })
+    print(results.describe())
+
+    return dataset

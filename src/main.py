@@ -1,15 +1,13 @@
 from datasets import Dataset, IterableDataset
 from functools import partial
 from pathlib import Path
-from transformers import PreTrainedTokenizer
 from typing import Any
 import argparse
-import pandas as pd
 import os
 
+from evaluation import run_evaluation
 from model import Model
 from type_inference import TypeInference
-import evaluation
 import util
 
 COLUMN_WITHOUT_TYPES = "content_without_types"
@@ -129,33 +127,23 @@ def prepare_dataset(
 
 def infer_on_example(
     example: dict[str, Any],
-    typeinf: TypeInference,
-    column: str
+    typeinf: TypeInference
 ) -> dict[str, Any]:
     # For now, we're assuming TypeScript with type annotations and definitions removed.
-    content = example[column]
     stripped = example[COLUMN_WITHOUT_TYPES]
 
     # Run type inference
     output = typeinf.infer_with_definitions(stripped)
-
-    # TODO: wanted to drop unneeded columns, but this seems to keep old columns
-    result = {
-        "hexsha": example["hexsha"],
-        "max_stars_repo_path": example["max_stars_repo_path"],
-        "max_stars_repo_name": example["max_stars_repo_name"],
-        "content": content,
-        OUTPUT_COLUMN: "",
-        ERROR_COLUMN: True,
-    }
-
     if output:
-        result[OUTPUT_COLUMN] = output
-        result[ERROR_COLUMN] = False
+        example[OUTPUT_COLUMN] = output
+        example[ERROR_COLUMN] = False
+    else:
+        example[OUTPUT_COLUMN] = ""
+        example[ERROR_COLUMN] = True
 
-    return result
+    return example
 
-def run_experiments(
+def run_inference(
     dataset: Dataset | IterableDataset,
     model: Model,
     typeinf: TypeInference,
@@ -168,72 +156,10 @@ def run_experiments(
     with util.timer():
         dataset = prepare_dataset(dataset, model, content_column, workers)
         dataset = dataset.map(
-            partial(infer_on_example, typeinf=typeinf, column=COLUMN_WITHOUT_TYPES),
+            partial(infer_on_example, typeinf=typeinf),
             num_proc=inference_workers, desc="Inferring types"
         )
-
-    return dataset
-
-def evaluate_example(
-    example: dict[str, Any],
-    tokenizer: PreTrainedTokenizer,
-    original_column: str,
-) -> dict[str, Any]:
-    original = example[original_column]
-    output = example[OUTPUT_COLUMN]
-
-    example["accuracy"] = evaluation.accuracy(tokenizer, original, output)
-    example["levenshtein"] = evaluation.levenshtein(original, output)
-
-    type_errors, parse_errors = evaluation.typescript(output)
-    example["type_errors"] = type_errors
-    example["parse_errors"] = parse_errors
-
-    return example
-
-def run_evaluation(
-    dataset: Dataset | IterableDataset,
-    tokenizer: PreTrainedTokenizer,
-    num_examples: int,
-    num_removed: int,
-    content_column: str,
-    workers: int
-) -> Dataset | IterableDataset:
-    # Remove examples that had errors
-    num_runs = len(dataset)
-    dataset = dataset.filter(
-        lambda e: not e[ERROR_COLUMN],
-        num_proc=workers,
-        desc="Removing failed runs"
-    )
-    num_errors = num_runs - len(dataset)
-
-    dataset = dataset.map(
-        partial(
-            evaluate_example,
-            tokenizer=tokenizer,
-            original_column=content_column
-        ),
-        num_proc=workers,
-        desc="Evaluating results"
-    )
-
-    num_typechecked = len([d for d in dataset["type_errors"] if d == 0])
-    pct_typechecked = num_typechecked / len(dataset)
-
-    # Print result statistics
-    print("Number of examples in the original:", num_examples)
-    print("Number of examples skipped:", num_removed)
-    print("Number of examples failed:", num_errors)
-    print("Number of examples that type checked: "
-          f"{num_typechecked} ({pct_typechecked:.2%})")
-    results = pd.DataFrame({
-        "accuracy": dataset["accuracy"],
-        "levenshtein": dataset["levenshtein"],
-        "type_errors": dataset["type_errors"],
-        "parse_errors": dataset["parse_errors"]
-    })
-    print(results.describe())
+    # TODO: Drop unneeded columns
 
     return dataset
 
@@ -261,16 +187,23 @@ def main():
     tokenizer = model.tokenizer
     typeinf = TypeInference(model)
 
-    # Run experiments
+    # Run inference
     num_examples = len(dataset)
-    dataset = run_experiments(
+    dataset = run_inference(
         dataset, model, typeinf, args.content_column, args.workers
     )
     num_removed = num_examples - len(dataset)
 
     # Run evaluation
     dataset = run_evaluation(
-        dataset, tokenizer, num_examples, num_removed, args.content_column, args.workers
+        dataset,
+        tokenizer,
+        num_examples,
+        num_removed,
+        args.content_column,
+        OUTPUT_COLUMN,
+        ERROR_COLUMN,
+        args.workers
     )
 
     # Save results to disk, if output was provided
