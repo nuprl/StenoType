@@ -7,7 +7,7 @@ from typing import Any
 import evaluate
 import json
 import Levenshtein
-import pandas as pd
+import numpy as np
 import subprocess
 
 from util import ROOT_DIR
@@ -98,14 +98,14 @@ def run_evaluation(
     print("Number of examples in the original:", num_examples)
     print("Number of examples skipped:", num_removed)
     print("Number of examples failed:", num_errors)
-    print("Number of examples that type checked: "
-          f"{num_typechecked} ({pct_typechecked:.2%})")
-    results = pd.DataFrame({
-        "accuracy": dataset["accuracy"],
-        "levenshtein": dataset["levenshtein"],
-        "type_errors": dataset["type_errors"],
-        "parse_errors": dataset["parse_errors"]
-    })
-    print(results.describe())
+    print("Number of examples that type checked:", num_typechecked)
+
+    print()
+    print(f"Accuracy: {np.mean(dataset['accuracy']):.1%}")
+    print(f"Levenshtein: {np.mean(dataset['levenshtein']):.1%}")
+    print(f"Type checked: {pct_typechecked:.1%}")
+    print(f"Type errors: {np.mean(dataset['type_errors']):.1f}")
+    print(f"Parse errors: {np.mean(dataset['parse_errors']):.1f}")
+    print()
 
     return dataset

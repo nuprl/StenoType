@@ -176,13 +176,15 @@ def main():
     dataset = util.load_dataset(args.dataset, args.split, args.revision, args.workers)
 
     if args.skim:
-        for d in dataset:
+        for i, d in enumerate(dataset):
             print("===REPO===")
-            print(d["max_stars_repo_name"], d["max_stars_repo_path"])
+            print(i, d["max_stars_repo_name"], d["max_stars_repo_path"])
+            print("===ORIGINAL===")
+            print(d["content"])
             print("===INPUT===")
-            print(d["content_without_types"])
+            print(d[COLUMN_WITHOUT_TYPES])
             print("===OUTPUT===")
-            print(d["output"])
+            print(d[OUTPUT_COLUMN])
             print("===RESULTS===")
             print(f"Accuracy {d['accuracy']:.2%}\n"
                   f"Levenshtein {d['levenshtein']:.2%}\n"
