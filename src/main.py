@@ -153,13 +153,21 @@ def run_inference(
     # Inference is the bottleneck, so too many workers will slow things down
     inference_workers = min(workers, 8)
 
+    dataset = prepare_dataset(dataset, model, content_column, workers)
     with util.timer():
-        dataset = prepare_dataset(dataset, model, content_column, workers)
         dataset = dataset.map(
             partial(infer_on_example, typeinf=typeinf),
             num_proc=inference_workers, desc="Inferring types"
         )
-    # TODO: Drop unneeded columns
+    dataset = dataset.select_columns([
+        "hexsha",
+        "max_stars_repo_path",
+        "max_stars_repo_name",
+        "content",
+        COLUMN_WITHOUT_TYPES,
+        OUTPUT_COLUMN,
+        ERROR_COLUMN
+    ])
 
     return dataset
 
