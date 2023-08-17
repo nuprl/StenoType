@@ -1,8 +1,8 @@
 from datasets import Dataset, IterableDataset
-from functools import partial
 from pathlib import Path
 from typing import Any
 import argparse
+import functools
 import os
 
 from evaluation import run_evaluation
@@ -105,7 +105,7 @@ def prepare_dataset(
 ) -> Dataset | IterableDataset:
     # Remove type annotations and definitions, add as new column
     dataset = dataset.map(
-        partial(add_column_without_types, column=content_column),
+        functools.partial(add_column_without_types, column=content_column),
         num_proc=workers,
         desc="Removing types"
     )
@@ -157,7 +157,7 @@ def run_inference(
     dataset = prepare_dataset(dataset, model, content_column, workers)
     with util.timer():
         dataset = dataset.map(
-            partial(infer_on_example, typeinf=typeinf),
+            functools.partial(infer_on_example, typeinf=typeinf),
             num_proc=inference_workers, desc="Inferring types"
         )
     dataset = dataset.select_columns([
@@ -178,20 +178,7 @@ def main():
 
     if args.skim:
         for i, d in enumerate(dataset):
-            print("===REPO===")
-            print(i, d["max_stars_repo_name"], d["max_stars_repo_path"])
-            print("===ORIGINAL===")
-            print(d["content"])
-            print("===INPUT===")
-            print(d[COLUMN_WITHOUT_TYPES])
-            print("===OUTPUT===")
-            print(d[OUTPUT_COLUMN])
-            print("===RESULTS===")
-            print(f"Accuracy {d['accuracy']:.2%}\n"
-                  f"Levenshtein {d['levenshtein']:.2%}\n"
-                  f"Type errors {d['type_errors']}\n"
-                  f"Parse errors {d['parse_errors']}")
-            input("===EOF===")
+            util.print_result(d, COLUMN_WITHOUT_TYPES, OUTPUT_COLUMN, i)
         return
 
     model = Model(args.model, args.port, args.devices)

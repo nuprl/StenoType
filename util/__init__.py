@@ -2,8 +2,9 @@ from contextlib import contextmanager
 from datetime import datetime
 from datasets import Dataset, IterableDataset
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 import datasets
+import difflib
 
 ROOT_DIR = Path(Path(__file__).parent).parent
 
@@ -61,3 +62,78 @@ def timer():
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     print(f"Time: {hours}:{minutes:02}:{seconds:02}")
+
+def print_diff(
+    before: str,
+    after: str,
+    fromfile: str = "before",
+    tofile: str = "after",
+    color: bool = False
+) -> None:
+    RED = "\033[31m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    RESET = "\033[39m"
+
+    before_lines = before.splitlines(keepends=True)
+    after_lines = after.splitlines(keepends=True)
+    diff = difflib.unified_diff(
+        before_lines, after_lines, fromfile=fromfile, tofile=tofile
+    )
+
+    for d in diff:
+        if color:
+            if d.startswith("@@"):
+                print(YELLOW + d, end=RESET)
+            elif d.startswith("+"):
+                print(GREEN + d, end=RESET)
+            elif d.startswith("-"):
+                print(RED + d, end=RESET)
+        else:
+            print(d, end="")
+    print()
+
+def print_result(
+    example: dict[str, Any],
+    column_without_types: str,
+    output_column: str,
+    i: Optional[int] = None
+) -> None:
+    name = example["max_stars_repo_name"] + " " + example["max_stars_repo_path"]
+    original_code = example["content"]
+    input_code = example[column_without_types]
+    output_code = example[output_column]
+    index = f"{i} " if i is not None else ""
+
+    print("===REPO===")
+    print(index + name)
+    print("===ORIGINAL===")
+    print(original_code)
+    print("===INPUT===")
+    print(input_code)
+    print("===OUTPUT===")
+    print(output_code)
+    print("===DIFF ORIGINAL/OUTPUT===")
+    print_diff(
+        original_code,
+        output_code,
+        fromfile="original",
+        tofile="output",
+        color=True
+    )
+    print("===DIFF INPUT/OUTPUT===")
+    print_diff(
+        input_code,
+        output_code,
+        fromfile="input",
+        tofile="output",
+        color=True
+    )
+    print("===RESULTS===")
+    print(f"Accuracy {example['accuracy']:.2%}\n"
+            f"Levenshtein {example['levenshtein']:.2%}\n"
+            f"Type errors {example['type_errors']}\n"
+            f"Parse errors {example['parse_errors']}")
+    print("===REPO===")
+    print(index + name)
+    input("===EOF===")
