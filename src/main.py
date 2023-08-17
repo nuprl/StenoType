@@ -8,6 +8,7 @@ import os
 from evaluation import run_evaluation
 from model import Model
 from type_inference import TypeInference
+from util import transform
 import util
 
 COLUMN_WITHOUT_TYPES = "content_without_types"
@@ -92,7 +93,7 @@ def parse_args() -> argparse.Namespace:
 def add_column_without_types(example: dict[str, Any], column: str) -> dict[str, Any]:
     # Delete type annotations and definitions
     content = example[column]
-    stripped = util.delete_types(content)
+    stripped = transform.delete_types(content)
     example[COLUMN_WITHOUT_TYPES] = stripped
     return example
 
@@ -111,7 +112,7 @@ def prepare_dataset(
 
     # Remove empty rows (since removing types may end up removing everything)
     dataset = dataset.filter(
-        lambda e: not util.is_empty(e[COLUMN_WITHOUT_TYPES]),
+        lambda e: not transform.is_empty(e[COLUMN_WITHOUT_TYPES]),
         num_proc=workers,
         desc="Removing empty examples"
     )

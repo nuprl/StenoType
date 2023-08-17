@@ -2,7 +2,7 @@ from tqdm import tqdm
 from typing import Optional
 
 from model import Model
-import util
+from util import transform
 
 # This instruction seems to work well. Need to mention "interfaces" to
 # get interfaces. Mentioning "type definitions" isn't enough, and
@@ -30,11 +30,11 @@ class TypeInference:
         Returns None if there is no valid type annotation.
         """
         template = f"let x: {generated}"
-        captures = util.run_query(template,
+        captures = transform.run_query(template,
             """
             (variable_declarator type: (type_annotation (_) @ann))
             """)
-        return util.node_to_str(captures[0][0]) if captures else None
+        return transform.node_to_str(captures[0][0]) if captures else None
 
     def _generate_type(self, prefix: str, suffix: str, retries: int = 3) -> str:
         """
@@ -73,8 +73,9 @@ class TypeInference:
             infilled_prefix += ": "
             suffix = "".join(chunks[index + 1:])
 
-            clipped_prefix, clipped_suffix = util.clip_text(infilled_prefix, suffix,
-                                                            self.model.max_context_length)
+            clipped_prefix, clipped_suffix = transform.clip_text(
+                infilled_prefix, suffix, self.model.max_context_length
+            )
             filled_type = self._generate_type(clipped_prefix, clipped_suffix)
             infilled_prefix += filled_type + chunk
 
@@ -85,8 +86,8 @@ class TypeInference:
         Run type inference, i.e. type annotation prediction, using
         fill-in-the-middle to infill types. Does not generate type definitions.
         """
-        content = util.parenthesize_arrow_params(content)
-        chunks = util.split_at_annotation_locations(content)
+        content = transform.parenthesize_arrow_params(content)
+        chunks = transform.split_at_annotation_locations(content)
         return self._infill_types(chunks)
 
     def infer_with_definitions(self, content: str) -> Optional[str]:

@@ -16,8 +16,8 @@ import argparse
 import os
 
 from finetune_lib import DatasetConfig
+from util import transform
 import finetune_lib as finetune
-import util
 
 """
 Edit the constants and configuration below to use for your own fine-tuning task.
@@ -142,9 +142,9 @@ def get_content(element: dict) -> Optional[str]:
     instruction = "Add type annotations and interfaces"
 
     with_types = element["content"].strip()
-    without_types = util.delete_types(with_types).strip()
+    without_types = transform.delete_types(with_types).strip()
 
-    if util.is_empty(without_types) or with_types == without_types:
+    if transform.is_empty(without_types) or with_types == without_types:
         return None
 
     return (
