@@ -47,12 +47,10 @@ def _typescript(contents: str) -> tuple[int, int]:
 
 def _evaluate_example(
     example: dict[str, Any],
-    tokenizer: PreTrainedTokenizer,
-    original_column: str,
-    output_column: str
+    tokenizer: PreTrainedTokenizer
 ) -> dict[str, Any]:
-    original = example[original_column]
-    output = example[output_column]
+    original = example["content"]
+    output = example["output"]
 
     example["accuracy"] = _accuracy(tokenizer, original, output)
     example["levenshtein"] = _levenshtein(original, output)
@@ -65,27 +63,19 @@ def run_evaluation(
     tokenizer: PreTrainedTokenizer,
     num_examples: int,
     num_removed: int,
-    content_column: str,
-    output_column: str,
-    error_column: str,
     workers: int
 ) -> Dataset | IterableDataset:
     # Remove examples that had errors
     num_runs = len(dataset)
     dataset = dataset.filter(
-        lambda e: not e[error_column],
+        lambda e: not e["error"],
         num_proc=workers,
         desc="Removing failed runs"
     )
     num_errors = num_runs - len(dataset)
 
     dataset = dataset.map(
-        partial(
-            _evaluate_example,
-            tokenizer=tokenizer,
-            original_column=content_column,
-            output_column=output_column
-        ),
+        partial(_evaluate_example, tokenizer=tokenizer),
         num_proc=workers,
         desc="Evaluating results"
     )

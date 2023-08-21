@@ -93,16 +93,11 @@ def print_diff(
             print(d, end="")
     print()
 
-def print_result(
-    example: dict[str, Any],
-    column_without_types: str,
-    output_column: str,
-    i: Optional[int] = None
-) -> None:
+def print_result(example: dict[str, Any], i: Optional[int] = None) -> None:
     name = example["max_stars_repo_name"] + " " + example["max_stars_repo_path"]
     original_code = example["content"]
-    input_code = example[column_without_types]
-    output_code = example[output_column]
+    input_code = example["content_without_types"]
+    output_code = example["output"]
     index = f"{i} " if i is not None else ""
 
     print("===REPO===")
