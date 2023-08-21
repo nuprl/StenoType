@@ -8,15 +8,16 @@ from util import transform
 # get interfaces. Mentioning "type definitions" isn't enough, and
 # "classes" causes the model to generate additional classes and methods.
 # Mentioning "TypeScript" doesn't seem to work.
-INSTRUCTION = "Add type annotations and interfaces"
+DEFAULT_INSTRUCTION = "Add type annotations and interfaces"
 
 class TypeInference:
     """
     Performs type inference by predictiong type annotations, and optionally
     generating type definitions.
     """
-    def __init__(self, model: Model):
+    def __init__(self, model: Model, instruction: str = DEFAULT_INSTRUCTION):
         self.model = model
+        self.instruction = instruction
 
     def _extract_type(self, generated: str) -> Optional[str]:
         """
@@ -96,4 +97,4 @@ class TypeInference:
         to the model.
         """
         # Assume no slicing is needed
-        return self.model.edit(content, INSTRUCTION)
+        return self.model.edit(content, self.instruction)
