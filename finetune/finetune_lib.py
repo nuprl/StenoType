@@ -1,10 +1,7 @@
 from accelerate import Accelerator
 from collections.abc import Callable
 from dataclasses import dataclass
-from datasets import (
-    Dataset,
-    IterableDataset,
-)
+from datasets import Dataset, IterableDataset
 from pathlib import Path
 from peft import (
     LoraConfig,

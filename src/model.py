@@ -54,13 +54,15 @@ class Model:
         self.tokenizer = AutoTokenizer.from_pretrained(Path(model).resolve())
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
+        # Initialize the server in a subprocess
         self._init_server(model, port, devices)
+        # Register a finalizer to shutdown the server
         weakref.finalize(self, self._shutdown_server)
 
         self.client = Client(f"http://127.0.0.1:{port}", timeout=timeout)
 
     def _init_server(self, model: str, port: int, devices: str) -> None:
-        print("Starting text-generation-inference server...")
+        print(f"Starting text-generation-inference server for {model} ...")
 
         # Try podman, then docker
         container_exec = shutil.which("podman") or shutil.which("docker")

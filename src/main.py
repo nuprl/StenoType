@@ -14,10 +14,20 @@ def parse_args() -> argparse.Namespace:
         description="Runs StarCoder to infer types for JavaScript")
 
     parser.add_argument(
+        "--models_directory",
+        type=str,
+        default="../models",
+        help="directory to load models from")
+    parser.add_argument(
+        "--results_directory",
+        type=str,
+        default="results",
+        help="directory to save results to")
+    parser.add_argument(
         "--port",
         type=int,
         default=8787,
-        help="Port for the model server")
+        help="port for the model server")
     parser.add_argument(
         "--devices",
         type=str,
@@ -34,19 +44,23 @@ def parse_args() -> argparse.Namespace:
 
     args = parser.parse_args()
 
-    if not args.skim:
-        if not args.devices:
-            print("error: the following arguments are required: --devices")
-            exit(2)
+    if not args.view and not args.devices:
+        print("error: the following arguments are required: --devices")
+        exit(2)
 
-    output = args.output
-    if output:
-        if Path(output).exists():
-            print(f"Output path {output} already exists, please delete, rename, or "
-                  "choose a different output path!")
+    if args.devices:
+        models_directory = Path(args.models_directory).resolve()
+        args.models_directory = str(models_directory)
+        if not models_directory.exists():
+            print("error: cannot find models directory:", models_directory)
+
+        results_directory = Path(args.results_directory).resolve()
+        args.results_directory = str(results_directory)
+        if not results_directory.exists():
+            print("error: cannot find results directory:", results_directory)
+
+        if not models_directory.exists() or not results_directory.exists():
             exit(2)
-        elif not (output.endswith(".parquet") or output.endswith(".jsonl")):
-            Path(output).mkdir(parents=True, exist_ok=True)
 
     return args
 
@@ -68,9 +82,7 @@ def main():
         workers=args.workers
     )
 
-    # TODO: this kind of config only allows changing dataset and model
-    # we might want to change how the inference is run
-    # so maybe implement experiment as a class, so methods can be overridden
+    # TODO: specify the kind of experiment to run, e.g. prompt and inference strategy
     run_experiment(dataset, "starcoderbase-1b", args)
     run_experiment(dataset, "stenotype-4b0794e", args)
     run_experiment(dataset, "stenotype-b476aae", args)

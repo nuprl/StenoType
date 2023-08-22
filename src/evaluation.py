@@ -90,12 +90,10 @@ def run_evaluation(
     print("Number of examples failed:", num_errors)
     print("Number of examples that type checked:", num_typechecked)
 
-    print()
     print(f"Accuracy: {np.mean(dataset['accuracy']):.1%}")
     print(f"Levenshtein: {np.mean(dataset['levenshtein']):.1%}")
     print(f"Type checked: {pct_typechecked:.1%}")
     print(f"Type errors: {np.mean(dataset['type_errors']):.1f}")
     print(f"Parse errors: {np.mean(dataset['parse_errors']):.1f}")
-    print()
 
     return dataset

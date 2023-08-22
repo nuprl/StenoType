@@ -53,10 +53,11 @@ def _infer_on_example(
     typeinf: TypeInference
 ) -> dict[str, Any]:
     # For now, we're assuming TypeScript with type annotations and definitions removed.
-    stripped = example["column_without_types"]
+    stripped = example["content_without_types"]
 
     # Run type inference
     output = typeinf.infer_with_definitions(stripped)
+
     if output:
         example["output"] = output
         example["error"] = False
@@ -76,16 +77,13 @@ def _run_inference(
     # Inference is the bottleneck, so too many workers will slow things down
     inference_workers = min(workers, 8)
 
-    dataset = _prepare_dataset(
-        dataset,
-        model,
-        workers
-    )
+    dataset = _prepare_dataset(dataset, model, workers)
 
     with util.timer():
         dataset = dataset.map(
             functools.partial(_infer_on_example, typeinf=typeinf),
-            num_proc=inference_workers, desc="Inferring types"
+            num_proc=inference_workers,
+            desc="Inferring types"
         )
 
     dataset = dataset.select_columns([
@@ -105,9 +103,14 @@ def run_experiment(
     model_name: str,
     args: argparse.Namespace
 ):
-    # TODO: make sure we have relative/absolute paths resolved
-    models_directory = "../models"
-    model_path = str(Path(models_directory, model_name))
+    # TODO: For now, the output name is {model_name}.parquet. Later we might
+    # have different experiments for a model, so we will need different names.
+    results_path = str(Path(args.results_directory, model_name).with_suffix(".parquet"))
+    if Path(results_path).exists():
+        print(f"error: output {results_path} already exists, please delete or rename!")
+        exit(2)
+
+    model_path = str(Path(args.models_directory, model_name))
     model = Model(model_path, args.port, args.devices)
 
     # Run inference
@@ -125,8 +128,4 @@ def run_experiment(
     )
 
     # Save results to disk
-    # TODO: make sure we have relative/absolute paths resolved
-    # TODO: check that the output doesn't already exist, if so rename something
-    results_directory = "results"
-    results_path = str(Path(results_directory, model_name).with_suffix(".parquet"))
     util.save_dataset(dataset, results_path, args.workers)

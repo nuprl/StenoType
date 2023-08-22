@@ -10,10 +10,10 @@ ROOT_DIR = Path(Path(__file__).parent).parent
 
 def load_dataset(
     dataset: str,
-    split: Optional[str],
-    revision: Optional[str],
-    workers: Optional[int]
-) -> Dataset | IterableDataset :
+    split: Optional[str] = None,
+    revision: Optional[str] = None,
+    workers: Optional[int] = None
+) -> Dataset | IterableDataset:
     """
     Load a dataset. Tries to interpret dataset as a path and loads a local file
     (in Parquet or JSON Lines format) or directory. If the path does not exist,

@@ -1,8 +1,4 @@
-from datasets import (
-    Dataset,
-    IterableDataset,
-    load_dataset
-)
+from datasets import Dataset, IterableDataset, load_dataset
 from pathlib import Path
 from peft import LoraConfig
 from transformers import (
