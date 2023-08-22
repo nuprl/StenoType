@@ -52,13 +52,7 @@ conda install nodejs=18.16.0
 6. Now you can run the experiments:
 
 ```bash
-python src/main.py \
-  --dataset nuprl/ts-eval \
-  --revision v1.1subset \
-  --split test \
-  --workers 10 \
-  --model ../models/starcoderbase-1b \
-  --devices 0
+python src/main.py --devices 0 --workers 10
 ```
 
 ## Dependencies

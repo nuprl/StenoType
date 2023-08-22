@@ -2,11 +2,10 @@ from pathlib import Path
 from requests.exceptions import ReadTimeout
 from text_generation import Client
 from transformers import AutoTokenizer
-from typing import Optional
+from typing import Optional, Self
 import shutil
 import subprocess
 import time
-import weakref
 
 FIM_PREFIX = "<fim_prefix>"
 FIM_MIDDLE = "<fim_middle>"
@@ -19,7 +18,7 @@ ENDOFTEXT = "<|endoftext|>"
 class Model:
     """
     This class wraps the text_generation client and provides methods for
-    infilling.
+    infilling. Must be used as a context manager.
     """
     CONTEXT_SIZE = 8 * 1024 # 8K tokens
     TYPE_PROPORTION = 0.25  # Assume input expands by 25% (added types) to get output
@@ -35,7 +34,7 @@ class Model:
 
     def __init__(
         self,
-        model: str,
+        model_path: str,
         port: int,
         devices: str,
         max_fim_tokens: int = 50,
@@ -51,33 +50,31 @@ class Model:
         self.top_p = top_p
         self.max_context_length = max_context_length
 
-        self.tokenizer = AutoTokenizer.from_pretrained(Path(model).resolve())
+        self.tokenizer = AutoTokenizer.from_pretrained(Path(model_path).resolve())
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
-        # Initialize the server in a subprocess
-        self._init_server(model, port, devices)
-        # Register a finalizer to shutdown the server
-        weakref.finalize(self, self._shutdown_server)
+        self.model_path = model_path
+        self.port = port
+        self.devices = devices
+        self.timeout = timeout
 
-        self.client = Client(f"http://127.0.0.1:{port}", timeout=timeout)
-
-    def _init_server(self, model: str, port: int, devices: str) -> None:
-        print(f"Starting text-generation-inference server for {model} ...")
+    def __enter__(self) -> Self:
+        print(f"Starting text-generation-inference server for {self.model_path} ...")
 
         # Try podman, then docker
         container_exec = shutil.which("podman") or shutil.which("docker")
         if container_exec is None:
             raise RuntimeError("Either podman or docker must be installed")
 
-        model_paths = Path(model).resolve().parts
+        model_paths = Path(self.model_path).resolve().parts
         models_directory = str(Path(*model_paths[:-1]))
         model_name = model_paths[-1]
 
         args = [
             container_exec, "run",
-            "-p", f"{port}:80",
+            "-p", f"{self.port}:80",
             "-v", f"{models_directory}:/data",
-            "-e", f"NVIDIA_VISIBLE_DEVICES={devices}",
+            "-e", f"NVIDIA_VISIBLE_DEVICES={self.devices}",
             "-e", "HF_HUB_ENABLE_HF_TRANSFER=0",
             "ghcr.io/huggingface/text-generation-inference:0.8",
             "--model-id", f"/data/{model_name}",
@@ -88,13 +85,19 @@ class Model:
         self.server_process: subprocess.Popen = subprocess.Popen(
             args, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, encoding="utf-8"
         )
+
         # Hack: just sleep for 10 seconds and hope the server has started
         time.sleep(10)
+        self.client = Client(f"http://127.0.0.1:{self.port}", timeout=self.timeout)
 
-    def _shutdown_server(self) -> None:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         print("Shutting down text-generation-inference server...")
         self.server_process.terminate()
         self.finalized = True
+        # Hack: sleep for 10 seconds before returning
+        time.sleep(10)
 
     def _generate(self, prompt: str, **kwargs) -> Optional[str]:
         """

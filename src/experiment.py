@@ -111,21 +111,20 @@ def run_experiment(
         exit(2)
 
     model_path = str(Path(args.models_directory, model_name))
-    model = Model(model_path, args.port, args.devices)
+    with Model(model_path, args.port, args.devices) as model:
+        # Run inference
+        num_examples = len(dataset)
+        dataset = _run_inference(dataset, model, args.workers)
+        num_removed = num_examples - len(dataset)
 
-    # Run inference
-    num_examples = len(dataset)
-    dataset = _run_inference(dataset, model, args.workers)
-    num_removed = num_examples - len(dataset)
-
-    # Run evaluation
-    dataset = run_evaluation(
-        dataset,
-        model.tokenizer,
-        num_examples,
-        num_removed,
-        args.workers
-    )
+        # Run evaluation
+        dataset = run_evaluation(
+            dataset,
+            model.tokenizer,
+            num_examples,
+            num_removed,
+            args.workers
+        )
 
     # Save results to disk
     util.save_dataset(dataset, results_path, args.workers)
