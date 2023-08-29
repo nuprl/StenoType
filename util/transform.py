@@ -16,6 +16,11 @@ def parse(s: str) -> Tree:
     """Parses the given string into a tree."""
     return PARSER.parse(s.encode("utf-8"))
 
+def is_valid_syntax(s: str) -> bool:
+    """Returns true if the given string is syntactically valid TypeScript."""
+    root = parse(s).root_node
+    return not root.has_error
+
 def node_to_str(node: Node) -> str:
     """Returns the string represented by the given tree node."""
     # utf-8-sig skips the BOM (if it exists) when decoding

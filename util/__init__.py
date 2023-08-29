@@ -5,8 +5,14 @@ from pathlib import Path
 from typing import Any, Optional
 import datasets
 import difflib
+import os
 
 ROOT_DIR = Path(Path(__file__).parent).parent
+
+def cpu_count() -> int:
+    # os.cpu_count() is the number of CPUs on the system,
+    # not the number available to the current process
+    return len(os.sched_getaffinity(0))
 
 def load_dataset(
     dataset: str,
@@ -20,7 +26,7 @@ def load_dataset(
     load the dataset from the Hugging Face Hub.
     """
     if Path(dataset).exists():
-        print(f"Loading dataset from {dataset} from disk...", flush=True)
+        print(f"Loading dataset {dataset} from disk...", flush=True)
         if dataset.endswith(".parquet"):
             return Dataset.from_parquet(dataset)
         elif dataset.endswith(".jsonl"):

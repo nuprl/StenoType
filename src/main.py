@@ -1,14 +1,11 @@
 from pathlib import Path
 import argparse
-import os
 
 from experiment import run_experiment
 import util
 
 def parse_args() -> argparse.Namespace:
-    # os.cpu_count() is the number of CPUs on the system,
-    # not the number available to the current process
-    cpu_count = len(os.sched_getaffinity(0))
+    cpu_count = util.cpu_count()
 
     parser = argparse.ArgumentParser(
         description="Runs StarCoder to infer types for JavaScript")
