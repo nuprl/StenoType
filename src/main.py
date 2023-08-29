@@ -72,12 +72,14 @@ def main():
         return
 
     # Right now we only have one evaluation dataset
-    dataset = util.load_dataset(
-        dataset="nuprl/ts-eval",
-        split="test",
-        revision="v1.1subset",
-        workers=args.workers
-    )
+    # dataset = util.load_dataset(
+    #     dataset="nuprl/ts-eval",
+    #     split="test",
+    #     revision="v1.1subset",
+    #     workers=args.workers
+    # )
+
+    dataset = util.load_dataset("../datasets/new_dataset_subset.parquet")
 
     # TODO: specify the kind of experiment to run, e.g. prompt and inference strategy
     run_experiment(dataset, "starcoderbase-1b", args)
