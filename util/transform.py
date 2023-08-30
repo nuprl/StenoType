@@ -1,5 +1,6 @@
 from pathlib import Path
 from tree_sitter import Language, Parser, Node, Tree
+from typing import Optional
 
 from . import ROOT_DIR
 
@@ -158,21 +159,10 @@ def clip_text(s1: str, s2: str, max_length: int) -> tuple[str, str]:
         s2 = prefix_ending_with_newline(s2, max_length // 2)
     return s1, s2
 
-def delete_nodes(content: str, nodes: list[Node]) -> str:
-    """
-    Given a content string and a list of AST nodes, return a new string with
-    those nodes deleted.
-    """
+def delete_between_indices(content: str, indices: list[Optional[int]]) -> str:
+    """Helper for deleting text between indices of a string."""
     # Need to operate on byte string, not characters
     content_bytes = content.encode("utf-8")
-
-    # Flatten the pairs of indices into a list.
-    # We add None to the beginning and end of the list of indices, so we can do
-    # array slicing.
-    # e.g. [(s1, e1), (s2, e2)]
-    #   -> [None, s1, e1, s2, e2, None]
-    pairs = [(n.start_byte, n.end_byte) for n in nodes]
-    indices = [None] + [i for p in pairs for i in p] + [None]
 
     # We zip the list with itself (offset by 1), moving by 2 elements each time,
     # e.g. [None, s1, e1, s2, e2, None]
@@ -183,6 +173,21 @@ def delete_nodes(content: str, nodes: list[Node]) -> str:
     new_content = "".join(chunks)
 
     return new_content
+
+def delete_nodes(content: str, nodes: list[Node]) -> str:
+    """
+    Given a content string and a list of AST nodes, return a new string with
+    those nodes deleted.
+    """
+    # Flatten the pairs of indices into a list.
+    # We add None to the beginning and end of the list of indices, so we can do
+    # array slicing.
+    # e.g. [(s1, e1), (s2, e2)]
+    #   -> [None, s1, e1, s2, e2, None]
+    pairs = [(n.start_byte, n.end_byte) for n in nodes]
+    indices = [None] + [i for p in pairs for i in p] + [None]
+
+    return delete_between_indices(content, indices)
 
 def is_child_type_annotation(start_node: Node) -> bool:
     """Checks if any of the parent nodes is an annotation node."""
@@ -238,10 +243,45 @@ def delete_type_definitions(content: str) -> str:
     nodes = [c[0] for c in captures if not is_child_of_export(c[0])]
     return delete_nodes(content, nodes)
 
+def is_child_type_assertion(start_node: Node) -> bool:
+    """Checks if any of the parent nodes is a type assertion node."""
+    node = start_node.parent
+    while node is not None:
+        if node.type == "as_expression":
+            return True
+        node = node.parent
+    return False
+
+def delete_type_assertions(content: str) -> str:
+    """Recursively deletes type assertions from the given string."""
+    captures = run_query(content, "(as_expression) @as_expression")
+
+    nodes = [c[0] for c in captures if not is_child_type_assertion(c[0])]
+    if not nodes:
+        return content
+
+    # Make a list of indices for deletion, to be used by delete_between_indices
+    # i.e. the format needs to be [None, s1, e1, ..., s2, e2, None]
+    # where `s` and `e` are `start` and `end` indices
+    indices: list[Optional[int]] = [None]
+    for n in nodes:
+        # `42 as number` is an as_expression, where the first child is `42` and
+        # the second child is `number`. We want to delete `as number`, i.e. from
+        # the end of the first child to the end of the as_expression.
+        indices.append(n.children[0].end_byte)
+        indices.append(n.end_byte)
+    indices.append(None)
+
+    content = delete_between_indices(content, indices)
+
+    # Recursive call to handle nested type assertion expressions
+    return delete_type_assertions(content)
+
 def delete_types(content: str) -> str:
     """Deletes type annotations and type definitions from the given string."""
     content = delete_type_definitions(content)
     content = delete_type_annotations(content)
+    content = delete_type_assertions(content)
     return content
 
 def delete_comments(content: str) -> str:
