@@ -134,3 +134,7 @@ class Model:
     def edit(self, code: str, instruction: str, prefix: str = "") -> Optional[str]:
         prompt = f"{COMMIT_BEFORE}{code}{COMMIT_MSG}{instruction}{COMMIT_AFTER}{prefix}"
         return self._generate(prompt)
+
+    def complete(self, prompt: str, stop_sequences: Optional[list[str]] = []) -> str:
+        completion = self._generate(prompt, stop_sequences=stop_sequences)
+        return f"{prompt}{completion}" if completion else prompt
