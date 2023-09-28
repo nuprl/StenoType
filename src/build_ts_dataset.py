@@ -5,6 +5,7 @@ from pathlib import Path
 from subprocess import PIPE
 from tempfile import NamedTemporaryFile
 from tqdm import tqdm
+from transformers import PreTrainedTokenizer
 from typing import Any, Optional
 import argparse
 import functools
@@ -27,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     cpu_count = util.cpu_count()
     # Dictionaries maintain insertion order
     valid_filters = dict.fromkeys([
-        "annotations", "types", "loc", "functions", "loc_per_function"
+        "annotations", "types", "loc", "functions", "loc_per_function", "tokens"
     ])
 
     parser = argparse.ArgumentParser(
@@ -78,6 +79,14 @@ def parse_args() -> argparse.Namespace:
         "--typecheck",
         action="store_true",
         help="filter dataset for files that type check")
+    group.add_argument(
+        "--metrics",
+        action="store_true",
+        help="add columns for dataset metrics")
+    group.add_argument(
+        "--tokenize",
+        action="store_true",
+        help="add a column with estimated number of tokens")
     group.add_argument(
         "--filter",
         type=str,
@@ -349,6 +358,25 @@ def loc_per_function(s: str) -> float:
 
     return avg_loc
 
+def add_metrics(example: dict[str, Any]) -> dict[str, Any]:
+    content = example["content"]
+
+    example["annotation_sites"] = count_annotation_sites(content)
+    example["type_definitions"] = count_type_definitions(content)
+    example["loc"] = count_loc(content)
+    example["functions"] = count_functions(content)
+    example["loc_per_function"] = loc_per_function(content)
+
+    return example
+
+def add_token_count(
+    tokenizer: PreTrainedTokenizer,
+    example: dict[str, Any]
+) -> dict[str, Any]:
+    token_count = len(tokenizer.encode(example["content"], add_special_tokens=True))
+    example["estimated_tokens"] = token_count
+    return example
+
 def apply_filters(
     dataset: Dataset | IterableDataset,
     filter_list: str,
@@ -357,23 +385,27 @@ def apply_filters(
     filter_dict = {
         "annotations": [
             "annotation sites > 0",
-            lambda d: count_annotation_sites(d["content"]) > 0
+            lambda d: d["annotation_sites"] > 0
         ],
         "types": [
             "type definitions > 0",
-            lambda d: count_type_definitions(d["content"]) > 0
+            lambda d: d["type_definitions"] > 0
         ],
         "loc": [
-            "lines of code (without types) >= 20",
-            lambda d: count_loc(d["content"]) >= 20
+            "lines of code (without types) >= 50",
+            lambda d: d["loc"] >= 50
         ],
         "functions": [
             "number of functions > 0",
-            lambda d: count_functions(d["content"]) > 0
+            lambda d: d["functions"] > 0
         ],
         "loc_per_function": [
             "average lines of code per function >= 5",
-            lambda d: loc_per_function(d["content"]) >= 5
+            lambda d: d["loc_per_function"] >= 5
+        ],
+        "tokens": [
+            "total tokens <= 4096",
+            lambda d: d["estimated_tokens"] <= 4096
         ]
     }
 
@@ -424,6 +456,23 @@ def main():
         dataset = filter_typechecks(
             dataset, args.checkpoint, args.checkpoint_steps, args.workers
         )
+
+    if args.metrics:
+        print("Adding metrics columns")
+        dataset = dataset.map(add_metrics, num_proc=args.workers)
+
+    if args.tokenize:
+        from transformers import AutoTokenizer
+        from transformers.utils import logging
+
+        print("Adding estimated tokens column")
+        # Supress warnings about token sequence length being too long
+        logging.set_verbosity(logging.ERROR)
+        tokenizer = AutoTokenizer.from_pretrained("bigcode/starcoder")
+        dataset = dataset.map(lambda e: add_token_count(tokenizer, e),
+                              num_proc=args.workers)
+        # Reset warning level
+        logging.set_verbosity(logging.WARN)
 
     if args.filter:
         dataset = apply_filters(dataset, args.filter, args.workers)
