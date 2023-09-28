@@ -314,10 +314,12 @@ def count_functions(s: str) -> int:
 
     captures = transform.run_query(no_types,
         """
-        (function_declaration) @func
-        (function) @func
-        (arrow_function) @func
-        (method_definition) @func
+        [
+          (function_declaration) @func
+          (function) @func
+          (arrow_function) @func
+          (method_definition) @func
+        ]
         """)
     return len(captures)
 
@@ -333,6 +335,8 @@ def loc_per_function(s: str) -> float:
           (function
             body: (_) @body)
           (arrow_function
+            body: (_) @body)
+          (method_definition
             body: (_) @body)
         ]
         """)
@@ -364,11 +368,11 @@ def apply_filters(
             lambda d: count_loc(d["content"]) >= 20
         ],
         "functions": [
-            "number of functions (outside classes) > 0",
+            "number of functions > 0",
             lambda d: count_functions(d["content"]) > 0
         ],
         "loc_per_function": [
-            "average lines of code per function (outside classes) >= 5",
+            "average lines of code per function >= 5",
             lambda d: loc_per_function(d["content"]) >= 5
         ]
     }

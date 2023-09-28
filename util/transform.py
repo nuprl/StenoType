@@ -222,20 +222,14 @@ def is_child_of_export(start_node: Node) -> bool:
     return False
 
 def delete_type_definitions(content: str) -> str:
-    """Deletes type definitions from the given string."""
+    """Deletes (non-class) type definitions from the given string."""
     captures = run_query(content,
         """
         [
             (interface_declaration) @type
-            (class_declaration) @type
-            (abstract_class_declaration) @type
             (type_alias_declaration) @type
             (export_statement
                 declaration: (interface_declaration)) @type
-            (export_statement
-                declaration: (class_declaration)) @type
-            (export_statement
-                declaration: (abstract_class_declaration)) @type
             (export_statement
                 declaration: (type_alias_declaration)) @type
         ]
