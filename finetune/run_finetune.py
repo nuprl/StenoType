@@ -109,15 +109,15 @@ TRAINING_ARGS = TrainingArguments(
 
 # If not using LoRA (e.g. you are using an H100 GPU which isn't supported by
 # bitsandbytes), set LORA_CONFIG to None.
-LORA_CONFIG: Optional[LoraConfig] = None
-# LORA_CONFIG = LoraConfig(
-#     r=16,
-#     lora_alpha=32,
-#     lora_dropout=0.05,
-#     bias="none",
-#     task_type="CAUSAL_LM",
-#     target_modules = ["c_proj", "c_attn", "q_attn"],
-# )
+# LORA_CONFIG: Optional[LoraConfig] = None
+LORA_CONFIG = LoraConfig(
+    r=16,
+    lora_alpha=32,
+    lora_dropout=0.05,
+    bias="none",
+    task_type="CAUSAL_LM",
+    target_modules = ["c_proj", "c_attn", "q_attn"],
+)
 
 def get_content(element: dict) -> Optional[str]:
     """
