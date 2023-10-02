@@ -41,41 +41,29 @@ MODEL_PATH = str(Path(Path(__file__).parent,
 # the training format
 TOTAL_TOKENS = 7_100_000_000 * 2
 
-########## StarCoder-15B on an A100 with LoRA
-# We pack the tokens into a ConstantLengthDataset,
-# where each example has SEQUENCE_LENGTH tokens
-# SEQUENCE_LENGTH = 7300
-# EPOCHS = 1
-# BATCH_SIZE = 1
-# GRADIENT_ACCUMULATION_STEPS = 16
-
-# Roughly 1.9M examples
-# Roughly 122K steps
-########## StarCoder-15B on an A100 with LoRA
-
 ########## StarCoder-1B on an A100 with LoRA
-# We pack the tokens into a ConstantLengthDataset,
-# where each example has SEQUENCE_LENGTH tokens
-SEQUENCE_LENGTH = 8*1024
-EPOCHS = 1
-BATCH_SIZE = 3
-GRADIENT_ACCUMULATION_STEPS = 16
-
-# Roughly 1.7M examples
-# Roughly 36K steps
-########## StarCoder-15B on an A100 with LoRA
-
-########## StarCoder-1B on an H100 without LoRA
 # We pack the tokens into a ConstantLengthDataset,
 # where each example has SEQUENCE_LENGTH tokens
 # SEQUENCE_LENGTH = 8*1024
 # EPOCHS = 1
-# BATCH_SIZE = 2
+# BATCH_SIZE = 3
 # GRADIENT_ACCUMULATION_STEPS = 16
 
 # Roughly 1.7M examples
+# Roughly 36K steps
+########## StarCoder-1B on an A100 with LoRA
+
+########## StarCoder-1B on an A100/H100 without LoRA
+# We pack the tokens into a ConstantLengthDataset,
+# where each example has SEQUENCE_LENGTH tokens
+SEQUENCE_LENGTH = 8*1024
+EPOCHS = 1
+BATCH_SIZE = 2
+GRADIENT_ACCUMULATION_STEPS = 16
+
+# Roughly 1.7M examples
 # Roughly 54K steps
-########## StarCoder-1B on an H100 without LoRA
+########## StarCoder-1B on an A100/H100 without LoRA
 
 NUM_EXAMPLES = TOTAL_TOKENS // SEQUENCE_LENGTH
 
@@ -120,15 +108,15 @@ TRAINING_ARGS = TrainingArguments(
 
 # If not using LoRA (e.g. you are using an H100 GPU which isn't supported by
 # bitsandbytes), set LORA_CONFIG to None.
-# LORA_CONFIG: Optional[LoraConfig] = None
-LORA_CONFIG = LoraConfig(
-    r=16,
-    lora_alpha=32,
-    lora_dropout=0.05,
-    bias="none",
-    task_type="CAUSAL_LM",
-    target_modules = ["c_proj", "c_attn", "q_attn"],
-)
+LORA_CONFIG: Optional[LoraConfig] = None
+# LORA_CONFIG = LoraConfig(
+#     r=16,
+#     lora_alpha=32,
+#     lora_dropout=0.05,
+#     bias="none",
+#     task_type="CAUSAL_LM",
+#     target_modules = ["c_proj", "c_attn", "q_attn"],
+# )
 
 def get_content(element: dict) -> Optional[str]:
     """

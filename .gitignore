@@ -3,6 +3,7 @@ build
 checkpoints*
 node_modules
 results
+slurm
 stenotype.egg-info
 wandb
 *.parquet
