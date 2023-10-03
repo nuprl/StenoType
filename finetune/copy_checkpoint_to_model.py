@@ -2,7 +2,6 @@ from pathlib import Path
 from transformers import AutoTokenizer
 import argparse
 import shutil
-import torch
 
 MODEL_PATH = str(Path(Path(__file__).parent,
                       "..", "..", "models", "starcoderbase-1b").resolve())
@@ -24,7 +23,6 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(args.base_model_name_or_path)
 
-    checkpoint = Path(args.checkpoint)
     ckpt_files = ["config.json", "generation_config.json", "pytorch_model.bin"]
     ckpt_paths = [Path(args.checkpoint, f) for f in ckpt_files]
 
