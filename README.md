@@ -55,6 +55,10 @@ conda install nodejs=18.16.0
 python src/main.py --devices 0 --workers 10
 ```
 
+7. You may need to manually launch the container, see
+   `launch_inference_server.sh`. This may be necessary to convert
+   `pytorch_model.bin` to `model.safetensors` format.
+
 ## Dependencies
 
   * git
