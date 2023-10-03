@@ -82,17 +82,36 @@ the base model if you want to run inference / evaluation. To do so, run:
 
 ```bash
 python merge_peft_adapters.py \
-  --peft_model_path ../checkpoints/checkpoint-1000
+  --peft_model_path ../checkpoints/checkpoint-1000 \
+  --output ../../models/merged_model
 ```
 
-By default, the base model is assumed to be StarCoderBase. If the environment
-variable `$MODELS_DIRECTORY` exists, then the model is assumed to be located in
-`$MODELS_DIRECTORY/starcoderbase`; otherwise the location is assumed to be
-`../../models/starcoderbase`. The model can be specified as a path or model ID,
-e.g. `--model_name_or_path bigcode/starcoder`
+By default, the base model is assumed to be starcoderbase-1b, and located in
+`../../models/starcoderbase-1b`. The model can be specified as a path or model
+ID, e.g. `--model_name_or_path bigcode/starcoder`
 
-By default, the merged model is saved to disk. Setting the `--push_to_hub`
-argument will upload the merged model to the Hugging Face Hub.
+By default, the merged model is saved to disk, with the name given by
+`--output`. Setting the `--push_to_hub` argument will upload the merged model
+to the Hugging Face Hub.
+
+## Copying tokenizer files
+
+Checkpoints contain additional files that are not needed for
+inference / evaluation, and are missing tokenizer files. You can copy the needed
+files by running:
+
+```bash
+python copy_checkpoint_to_model.py \
+  --checkpoint ../checkpoints/checkpoint-1000 \
+  --output ../../models/finetuned_model
+```
+
+By default, the base model is assumed to be starcoderbase-1b, and located in
+`../../models/starcoderbase-1b`. The model can be specified as a path or model
+ID, e.g. `--model_name_or_path bigcode/starcoder`
+
+By default, the merged model is saved to disk, with the name given by
+`--output`.
 
 ## Customizing the fine-tuning script
 

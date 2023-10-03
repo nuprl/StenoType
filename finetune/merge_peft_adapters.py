@@ -15,6 +15,7 @@ def get_args():
         default=MODEL_PATH)
     parser.add_argument("--peft_model_path", type=str, required=True)
     parser.add_argument("--push_to_hub", action="store_true")
+    parser.add_argument("--output", type=str, required=True)
 
     return parser.parse_args()
 
@@ -40,9 +41,9 @@ def main():
                               use_temp_dir=False,
                               private=True)
     else:
-        model.save_pretrained(f"{args.base_model_name_or_path}-merged")
-        tokenizer.save_pretrained(f"{args.base_model_name_or_path}-merged")
-        print(f"Model saved to {args.base_model_name_or_path}-merged")
+        model.save_pretrained(args.output)
+        tokenizer.save_pretrained(args.output)
+        print(f"Model saved to {args.output}")
 
 if __name__ == "__main__" :
     main()
