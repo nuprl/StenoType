@@ -79,13 +79,13 @@ def main():
     #     workers=args.workers
     # )
 
-    dataset = util.load_dataset("../datasets/new_dataset_subset.parquet")
+    # dataset = util.load_dataset("../datasets/new_dataset_subset.parquet")
+    dataset = util.load_dataset("../datasets/stenotype-eval-dataset-subset")
 
     # TODO: specify the kind of experiment to run, e.g. prompt and inference strategy
     run_experiment(dataset, "starcoderbase-1b", args)
-    run_experiment(dataset, "stenotype-4b0794e", args)
-    run_experiment(dataset, "stenotype-b476aae", args)
-    run_experiment(dataset, "stenotype-381d16d", args)
+    run_experiment(dataset, "stenotype-75ce914-ckpt100", args)
+    run_experiment(dataset, "stenotype-24d19df-ckpt100", args)
 
 if __name__ == "__main__":
     main()
