@@ -1,4 +1,2 @@
 accelerate @ git+https://github.com/huggingface/accelerate
-bitsandbytes==0.39.1
-peft @ git+https://github.com/huggingface/peft.git
 wandb==0.15.5

@@ -38,10 +38,6 @@ See the instructions in `../README.md` for downloading the
 
 ## Running fine-tuning
 
-To fine-tune cheaply and efficiently, we use Hugging Face 🤗's
-[PEFT](https://github.com/huggingface/peft) as well as Tim Dettmers'
-[bitsandbytes](https://github.com/TimDettmers/bitsandbytes).
-
 The fine-tuning is based on the
 [ts-training](https://huggingface.co/datasets/nuprl/ts-training) dataset,
 revision `v1.1p1`. **You will need to accept the agreement** on the dataset
@@ -74,25 +70,6 @@ CUDA_VISIBLE_DEVICES=2,3 torchrun --nproc-per-node 2 run_finetune.py
 
 Use `CUDA_VISIBLE_DEVICES` to select the GPUs for fine-tuning, and
 `--nproc-per-node` to specify the number of GPUs to use.
-
-## Merging PEFT adapter layers
-
-If you train a model with PEFT, you'll need to merge the adapter layers with
-the base model if you want to run inference / evaluation. To do so, run:
-
-```bash
-python merge_peft_adapters.py \
-  --peft_model_path ../checkpoints/checkpoint-1000 \
-  --output ../../models/merged_model
-```
-
-By default, the base model is assumed to be starcoderbase-1b, and located in
-`../../models/starcoderbase-1b`. The model can be specified as a path or model
-ID, e.g. `--model_name_or_path bigcode/starcoder`
-
-By default, the merged model is saved to disk, with the name given by
-`--output`. Setting the `--push_to_hub` argument will upload the merged model
-to the Hugging Face Hub.
 
 ## Copying tokenizer files
 

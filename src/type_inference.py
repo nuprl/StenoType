@@ -12,7 +12,7 @@ DEFAULT_INSTRUCTION = "Add type annotations and interfaces"
 
 class TypeInference:
     """
-    Performs type inference by predictiong type annotations, and optionally
+    Performs type inference by predicting type annotations, and optionally
     generating type definitions.
     """
     def __init__(self, model: Model, instruction: str = DEFAULT_INSTRUCTION):

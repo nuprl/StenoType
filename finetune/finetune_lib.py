@@ -1,24 +1,13 @@
-from accelerate import Accelerator
 from collections.abc import Callable
 from dataclasses import dataclass
 from datasets import Dataset, IterableDataset
 from pathlib import Path
-from peft import (
-    LoraConfig,
-    get_peft_model,
-    prepare_model_for_kbit_training,
-    set_peft_model_state_dict
-)
 from torch.utils.data import IterableDataset as TorchIterableDataset
 from transformers import (
     AutoModelForCausalLM,
     PreTrainedTokenizer,
     Trainer,
-    TrainingArguments,
-    TrainerCallback,
-    TrainerControl,
-    TrainerState)
-from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+    TrainingArguments)
 from typing import Optional
 import torch
 
@@ -47,56 +36,15 @@ class DatasetConfig:
     shuffle_buffer: int = 1000
     seq_length: int = 2048
 
-class SavePeftModelCallback(TrainerCallback):
-    def on_save(
-        self,
-        args: TrainingArguments,
-        state: TrainerState,
-        control: TrainerControl,
-        **kwargs,
-    ) -> TrainerControl:
-        checkpoint_folder = Path(
-            args.output_dir,
-            f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}"
-        )
-        kwargs["model"].save_pretrained(checkpoint_folder)
-        pytorch_model_path = Path(checkpoint_folder, "pytorch_model.bin")
-        torch.save({}, pytorch_model_path)
-        return control
-
-class LoadBestPeftModelCallback(TrainerCallback):
-    def on_train_end(
-        self,
-        args: TrainingArguments,
-        state: TrainerState,
-        control: TrainerControl,
-        **kwargs,
-    ) -> TrainerControl:
-        print(
-            f"Loading best peft model from {state.best_model_checkpoint} "
-            f"(score: {state.best_metric})."
-        )
-        best_model_path = Path(state.best_model_checkpoint, "adapter_model.bin")
-        adapters_weights = torch.load(best_model_path)
-        model = kwargs["model"]
-        set_peft_model_state_dict(model, adapters_weights)
-        return control
-
 def print_trainable_parameters(model) -> None:
     """
     Prints the number of trainable parameters in the model.
     """
     trainable_params = 0
-    all_param = 0
     for _, param in model.named_parameters():
-        all_param += param.numel()
         if param.requires_grad:
             trainable_params += param.numel()
-    print(
-        f"trainable params: {trainable_params} || "
-        f"all params: {all_param} || "
-        f"trainable%: {100 * trainable_params / all_param}"
-    )
+    print(f"trainable params: {trainable_params}")
 
 class ConstantLengthDataset(TorchIterableDataset):
     """
@@ -239,7 +187,6 @@ def create_datasets(
 def run_training(
     model_path: str,
     training_args: TrainingArguments,
-    lora_config: Optional[LoraConfig],
     train_data: TorchIterableDataset,
     val_data: TorchIterableDataset,
 ):
@@ -248,15 +195,8 @@ def run_training(
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         use_cache=not training_args.gradient_checkpointing,
-        load_in_8bit=lora_config is not None,
-        device_map={"": Accelerator().process_index} if lora_config else None,
+        device_map=None,
     )
-
-    callbacks = []
-    if lora_config:
-        model = prepare_model_for_kbit_training(model)
-        model = get_peft_model(model, lora_config)
-        callbacks = [SavePeftModelCallback, LoadBestPeftModelCallback]
 
     print_trainable_parameters(model)
 
@@ -266,7 +206,6 @@ def run_training(
         args=training_args,
         train_dataset=train_data,
         eval_dataset=val_data,
-        callbacks=callbacks,
     )
 
     print("Training...")
