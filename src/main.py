@@ -85,7 +85,6 @@ def main():
     # TODO: specify the kind of experiment to run, e.g. prompt and inference strategy
     run_experiment(dataset, "starcoderbase-1b", args)
     run_experiment(dataset, "stenotype-75ce914-ckpt100", args)
-    run_experiment(dataset, "stenotype-24d19df-ckpt100", args)
 
 if __name__ == "__main__":
     main()
