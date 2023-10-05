@@ -289,14 +289,11 @@ def count_annotation_sites(s: str) -> int:
     return len(chunks) - 1
 
 def count_type_definitions(s: str) -> int:
+    # Excludes classes and abstract classes
     captures = transform.run_query(s,
         """
         [
           (interface_declaration
-            name: (type_identifier) @name)
-          (class_declaration
-            name: (type_identifier) @name)
-          (abstract_class_declaration
             name: (type_identifier) @name)
           (type_alias_declaration
             name: (type_identifier) @name)
