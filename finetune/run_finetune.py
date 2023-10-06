@@ -6,13 +6,12 @@ from transformers import (
     logging,
     set_seed
 )
-from typing import Optional
 import argparse
 import os
 
 from finetune_lib import DatasetConfig
-from util import transform
 import finetune_lib as finetune
+import get_training_example
 
 """
 Edit the constants and configuration below to use for your own fine-tuning task.
@@ -93,39 +92,8 @@ TRAINING_ARGS = TrainingArguments(
     gradient_checkpointing=True,
 )
 
-def get_content(element: dict) -> Optional[str]:
-    """
-    Given an input example, i.e. a string containing the contents of a
-    TypeScript file, process it and return the updated example for training.
-
-    Specifically, we process it into the StarCoder edit format, e.g.
-
-        <commit_before>{code without types}
-        <commit_msg>{instruction}
-        <commit_after>{original code}
-
-    Returns None if the processed element is invalid; i.e. removing all the types
-    removes the entire content, or there were no types to remove.
-    """
-    COMMIT_BEFORE = "<commit_before>"
-    COMMIT_MSG = "<commit_msg>"
-    COMMIT_AFTER = "<commit_after>"
-    instruction = "Add type annotations and interfaces"
-
-    with_types = element["content"].strip()
-    without_types = transform.delete_types(with_types).strip()
-
-    if transform.is_empty(without_types) or with_types == without_types:
-        return None
-
-    return (
-        f"{COMMIT_BEFORE}{without_types}"
-        f"{COMMIT_MSG}{instruction}"
-        f"{COMMIT_AFTER}{with_types}"
-    )
-
 DATASET_CONFIG = DatasetConfig(
-    get_content=get_content,
+    get_content=get_training_example.get2,
     streaming=True,
     size_valid_set=10_000,
     shuffle_buffer=5_000,

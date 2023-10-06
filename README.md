@@ -46,18 +46,18 @@ conda install nodejs=18.16.0
       `pytorch_model*.bin` files, _after_ they have been converted to
       `model*.safetensors` format. The conversion happens during the first run.
 
-5. Accept the agreement for the
+5. You may need to manually launch the container, see
+   `launch_inference_server.sh`. This may be necessary to convert
+   `pytorch_model.bin` to `model.safetensors` format.
+
+6. Accept the agreement for the
    [ts-eval](https://huggingface.co/datasets/nuprl/ts-eval) evaluation dataset.
 
-6. Now you can run the experiments:
+7. Now you can run the experiments:
 
 ```bash
 python src/main.py --devices 0 --workers 10
 ```
-
-7. You may need to manually launch the container, see
-   `launch_inference_server.sh`. This may be necessary to convert
-   `pytorch_model.bin` to `model.safetensors` format.
 
 ## Dependencies
 
