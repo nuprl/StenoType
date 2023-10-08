@@ -73,7 +73,7 @@ def get2(element: dict) -> Optional[str]:
 
     # Don't forget to delete type assertions!
     no_anns = transform.delete_type_annotations(original)
-    no_anns = transform.delete_type_assertions(original).strip()
+    no_anns = transform.delete_type_assertions(no_anns).strip()
 
     no_types = transform.delete_type_definitions(no_anns).strip()
 
