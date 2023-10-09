@@ -1,4 +1,5 @@
 from datasets import Dataset, IterableDataset
+from enum import Enum
 from pathlib import Path
 from typing import Any
 import argparse
@@ -9,6 +10,11 @@ from model import Model
 from type_inference import TypeInference
 from util import transform
 import util
+
+class ExperimentType(Enum):
+    APPROACH_1 = 1
+    APPROACH_2 = 2
+    APPROACH_3 = 3
 
 def _add_column_without_types(
     example: dict[str, Any]
@@ -50,13 +56,27 @@ def _prepare_dataset(
 
 def _infer_on_example(
     example: dict[str, Any],
+    approach: ExperimentType,
     typeinf: TypeInference
 ) -> dict[str, Any]:
     # For now, we're assuming TypeScript with type annotations and definitions removed.
     stripped = example["content_without_types"]
 
-    # Run type inference
-    output = typeinf.infer_with_definitions(stripped)
+    # Run type inference, depending on the approach we're using
+    match approach:
+        case ExperimentType.APPROACH_1:
+            # One-shot: use the instruction "Add type annotations and interfaces"
+            output = typeinf.infer_with_definitions(stripped)
+        case ExperimentType.APPROACH_2:
+            output = typeinf._edit(stripped, [
+                "Add type aliases and interfaces",
+                "Add type annotations"
+            ])
+        case ExperimentType.APPROACH_3:
+            output = typeinf._edit(stripped, [
+                "Add type annotations"
+                "Add type aliases and interfaces",
+            ])
 
     if output:
         example["output"] = output
@@ -70,18 +90,20 @@ def _infer_on_example(
 def _run_inference(
     dataset: Dataset | IterableDataset,
     model: Model,
+    approach: ExperimentType,
     workers: int
 ) -> Dataset | IterableDataset:
     typeinf = TypeInference(model)
 
     # Inference is the bottleneck, so too many workers will slow things down
+    # TODO: maybe we can crank this up if we use vLLM and more batching?
     inference_workers = min(workers, 8)
 
     dataset = _prepare_dataset(dataset, model, workers)
 
     with util.timer():
         dataset = dataset.map(
-            functools.partial(_infer_on_example, typeinf=typeinf),
+            functools.partial(_infer_on_example, approach=approach, typeinf=typeinf),
             num_proc=inference_workers,
             desc="Inferring types"
         )
@@ -101,6 +123,7 @@ def _run_inference(
 def run_experiment(
     dataset: Dataset | IterableDataset,
     model_name: str,
+    approach: ExperimentType,
     args: argparse.Namespace
 ):
     # TODO: For now, the output name is {model_name}.parquet. Later we might
@@ -114,7 +137,7 @@ def run_experiment(
     with Model(model_path, args.port, args.devices) as model:
         # Run inference
         num_examples = len(dataset)
-        dataset = _run_inference(dataset, model, args.workers)
+        dataset = _run_inference(dataset, model, approach, args.workers)
         num_removed = num_examples - len(dataset)
 
         # Run evaluation

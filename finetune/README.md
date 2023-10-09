@@ -87,8 +87,7 @@ By default, the base model is assumed to be starcoderbase-1b, and located in
 `../../models/starcoderbase-1b`. The model can be specified as a path or model
 ID, e.g. `--model_name_or_path bigcode/starcoder`
 
-By default, the merged model is saved to disk, with the name given by
-`--output`.
+By default, the model is saved to disk, with the name given by `--output`.
 
 ## Customizing the fine-tuning script
 

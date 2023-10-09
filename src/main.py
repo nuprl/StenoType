@@ -1,7 +1,7 @@
 from pathlib import Path
 import argparse
 
-from experiment import run_experiment
+from experiment import ExperimentType, run_experiment
 import util
 
 def parse_args() -> argparse.Namespace:
@@ -71,20 +71,19 @@ def main():
             util.print_result(d, i)
         return
 
-    # Right now we only have one evaluation dataset
-    # dataset = util.load_dataset(
-    #     dataset="nuprl/ts-eval",
-    #     split="test",
-    #     revision="v1.1subset",
-    #     workers=args.workers
-    # )
-
-    # dataset = util.load_dataset("../datasets/new_dataset_subset.parquet")
+    # TODO: Right now we only have one evaluation dataset
     dataset = util.load_dataset("../datasets/stenotype-eval-dataset-subset")
 
-    # TODO: specify the kind of experiment to run, e.g. prompt and inference strategy
-    run_experiment(dataset, "starcoderbase-1b", args)
-    run_experiment(dataset, "stenotype-75ce914-ckpt100", args)
+    # run_experiment(dataset, "starcoderbase-1b", ExperimentType.APPROACH_1, args)
+    # run_experiment(
+    #     dataset, "stenotype-75ce914-ckpt100", ExperimentType.APPROACH_1, args
+    # )
+    run_experiment(
+        dataset, "stenotype-54d5802-ckpt100", ExperimentType.APPROACH_2, args
+    )
+    run_experiment(
+        dataset, "stenotype-2b77ede-ckpt100", ExperimentType.APPROACH_3, args
+    )
 
 if __name__ == "__main__":
     main()
