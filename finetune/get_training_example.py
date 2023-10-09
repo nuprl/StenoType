@@ -86,3 +86,39 @@ def get2(element: dict) -> Optional[str]:
         return commit_format(
             no_anns, "Add type annotations", original
         )
+
+def get3(element: dict) -> Optional[str]:
+    """
+    This approach relies on two steps to infer type definitions: first the model
+    inserts type annotations, then it generates type definitions.
+
+    This requires two different formats. For training, we flip a coin to
+    determine which format to use.
+
+    Format 1:
+        <commit_before>{code without types}
+        <commit_msg>Add type annotations
+        <commit_after>{code with type annotations but no type definitions}
+
+    Format 2:
+        <commit_before>{code with type annotations but no type definitions}
+        <commit_msg>Add type aliases and interfaces
+        <commit_after>{original code}
+    """
+    original = element["content"].strip()
+
+    no_defs = transform.delete_type_definitions(original).strip()
+
+    # Don't forget to delete type assertions!
+    no_types = transform.delete_type_annotations(no_defs)
+    no_types = transform.delete_type_assertions(no_types).strip()
+
+    # Flip a coin to determine which training format to use
+    if random.randint(0, 1) == 0:
+        return commit_format(
+            no_types, "Add type annotations", no_defs
+        )
+    else:
+        return commit_format(
+            no_defs, "Add type aliases and interfaces", original
+        )

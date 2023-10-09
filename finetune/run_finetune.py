@@ -93,7 +93,7 @@ TRAINING_ARGS = TrainingArguments(
 )
 
 DATASET_CONFIG = DatasetConfig(
-    get_content=get_training_example.get2,
+    get_content=get_training_example.get3,
     streaming=True,
     size_valid_set=10_000,
     shuffle_buffer=5_000,
