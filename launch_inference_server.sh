@@ -5,19 +5,19 @@
 : ${MODELS_DIRECTORY:=$(pwd)/../models}
 
 # $MODELS_DIRECTORY is mounted to /data, and the default model is starcoderbase-1b
-# override by calling the script with `MODEL_NAME=starcoder ./run_starcoderbase.sh`
+# override by calling the script with `MODEL_NAME=starcoder ./launch_inference_server.sh`
 : ${MODEL_NAME:=starcoderbase-1b}
 
 # use podman by default
-# override by calling script with `DOCKER=docker ./run_starcoderbase.sh`
+# override by calling script with `DOCKER=docker ./launch_inference_server.sh`
 : ${DOCKER:=podman}
 
 # use port 8787 by default
-# override by calling script with `PORT=8080 ./run_starcoderbase.sh`
+# override by calling script with `PORT=8080 ./launch_inference_server.sh`
 : ${PORT:=8787}
 
 # use GPU 0 by default
-# override by calling script with `DEVICES=2 ./run_starcoderbase.sh`
+# override by calling script with `DEVICES=2 ./launch_inference_server.sh`
 : ${DEVICES:=0}
 
 $DOCKER run \

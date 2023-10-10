@@ -27,7 +27,7 @@ class Model:
     # Input + (1 + Proportion) * Input = Context
     # (2 + Proportion) * Input = Context
     # Input = Context / (2 + Proportion)
-    INPUT_SIZE = int(CONTEXT_SIZE / (2 + TYPE_PROPORTION))
+    INPUT_SIZE = round(CONTEXT_SIZE / (2 + TYPE_PROPORTION))
     OUTPUT_SIZE = CONTEXT_SIZE - INPUT_SIZE
 
     finalized = False
