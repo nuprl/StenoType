@@ -21,10 +21,6 @@ def parse_args() -> argparse.Namespace:
         default="results",
         help="directory to save results to")
     parser.add_argument(
-        "--devices",
-        type=str,
-        help="GPU devices to use")
-    parser.add_argument(
         "--workers",
         type=int,
         default=cpu_count,

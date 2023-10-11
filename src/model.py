@@ -2,7 +2,6 @@ from pathlib import Path
 from transformers import AutoTokenizer
 from typing import Optional, Union
 from vllm import LLM, SamplingParams
-import os
 import torch
 
 FIM_PREFIX = "<fim_prefix>"
@@ -12,6 +11,22 @@ COMMIT_BEFORE = "<commit_before>"
 COMMIT_MSG = "<commit_msg>"
 COMMIT_AFTER = "<commit_after>"
 ENDOFTEXT = "<|endoftext|>"
+
+class Tokenizer:
+    """
+    Wrapper for an AutoTokenizer, because we need to add a special "[PAD]" token.
+    For convenience, this class can be called to tokenize a string.
+    """
+    def __init__(self, tokenizer_path: str):
+        self.tokenizer = AutoTokenizer.from_pretrained(Path(tokenizer_path).resolve())
+        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+
+    def __call__(self, content: str):
+        # Assuming NumPy tensors consume less memory
+        return self.tokenizer(content,
+                              return_attention_mask=False,
+                              return_tensors="np")["input_ids"][0]
+
 
 class Model:
     """
@@ -31,31 +46,22 @@ class Model:
     def __init__(
         self,
         model_path: str,
-        devices: Optional[str] = None,
         max_tokens: int = OUTPUT_SIZE,
         max_fim_tokens: int = 50,
         temperature: float = 0.2,
         top_p: float = 0.95,
         max_context_length: int = 500
     ):
-        # Set environment variable to select the GPU device(s)
-        if devices:
-            os.environ["CUDA_VISIBLE_DEVICES"] = devices
-
         self.max_tokens = max_tokens
         self.max_fim_tokens = max_fim_tokens
         self.temperature = temperature
         self.top_p = top_p
         self.max_context_length = max_context_length
 
-        self.tokenizer = AutoTokenizer.from_pretrained(Path(model_path).resolve())
-        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-
-        num_gpus = len(devices.split(",")) if devices else torch.cuda.device_count()
         self.model = LLM(
             model=model_path,
             tokenizer=model_path,
-            tensor_parallel_size=num_gpus,
+            tensor_parallel_size=torch.cuda.device_count(),
             dtype="bfloat16" if torch.cuda.is_bf16_supported() else "float16",
         )
 
@@ -83,12 +89,6 @@ class Model:
 
         outputs = self.model.generate(prompts, params, use_tqdm=False)
         return [o.outputs[0].text for o in outputs]
-
-    def tokenize(self, content: str):
-        # Assuming NumPy tensors consume less memory
-        return self.tokenizer(content,
-                              return_attention_mask=False,
-                              return_tensors="np")["input_ids"][0]
 
     def infill_batch(self, pairs: list[tuple[str, str]]) -> list[str]:
         prompts = [f"{FIM_PREFIX}{pre}{FIM_SUFFIX}{suf}{FIM_MIDDLE}"

@@ -6,7 +6,7 @@ import argparse
 import functools
 
 from evaluation import run_evaluation
-from model import Model
+from model import Model, Tokenizer
 from type_inference import TypeInference
 from util import transform
 import util
@@ -28,6 +28,7 @@ def _add_column_without_types(
 def _prepare_dataset(
     dataset: Dataset | IterableDataset,
     model: Model,
+    tokenizer: Tokenizer,
     workers: int
 ) -> Dataset | IterableDataset:
     # Remove type annotations and definitions, add as new column
@@ -45,9 +46,9 @@ def _prepare_dataset(
     )
 
     # Remove examples that are too long
+    input_size = model.INPUT_SIZE
     dataset = dataset.filter(
-        lambda e: (len(model.tokenize(e["content_without_types"])) <
-                    model.INPUT_SIZE),
+        lambda e: len(tokenizer(e["content_without_types"])) < input_size,
         num_proc=workers,
         desc="Removing large examples"
     )
@@ -90,11 +91,12 @@ def _infer_on_example(
 def _run_inference(
     dataset: Dataset | IterableDataset,
     model: Model,
+    tokenizer: Tokenizer,
     approach: ExperimentType,
     workers: int
 ) -> Dataset | IterableDataset:
     typeinf = TypeInference(model)
-    dataset = _prepare_dataset(dataset, model, workers)
+    dataset = _prepare_dataset(dataset, model, tokenizer, workers)
 
     # TODO: batch completions, or generate multiple completions
     with util.timer():
@@ -129,17 +131,18 @@ def run_experiment(
         exit(2)
 
     model_path = str(Path(args.models_directory, model_name))
-    model = Model(model_path, args.devices)
+    model = Model(model_path)
+    tokenizer = Tokenizer(model_path)
 
     # Run inference
     num_examples = len(dataset)
-    dataset = _run_inference(dataset, model, approach, args.workers)
+    dataset = _run_inference(dataset, model, tokenizer, approach, args.workers)
     num_removed = num_examples - len(dataset)
 
     # Run evaluation
     dataset = run_evaluation(
         dataset,
-        model.tokenizer,
+        tokenizer.tokenizer,
         num_examples,
         num_removed,
         args.workers

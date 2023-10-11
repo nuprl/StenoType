@@ -50,7 +50,7 @@ conda install nodejs=18.16.0
 6. Now you can run the experiments:
 
 ```bash
-python src/main.py --devices 0 --workers 10
+CUDA_VISIBLE_DEVICES=0 python src/main.py --workers 10
 ```
 
 ## Dependencies
