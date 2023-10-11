@@ -94,17 +94,12 @@ def _run_inference(
     workers: int
 ) -> Dataset | IterableDataset:
     typeinf = TypeInference(model)
-
-    # Inference is the bottleneck, so too many workers will slow things down
-    # TODO: maybe we can crank this up if we use vLLM and more batching?
-    inference_workers = min(workers, 8)
-
     dataset = _prepare_dataset(dataset, model, workers)
 
+    # TODO: batch completions, or generate multiple completions
     with util.timer():
         dataset = dataset.map(
             functools.partial(_infer_on_example, approach=approach, typeinf=typeinf),
-            num_proc=inference_workers,
             desc="Inferring types"
         )
 
@@ -134,20 +129,21 @@ def run_experiment(
         exit(2)
 
     model_path = str(Path(args.models_directory, model_name))
-    with Model(model_path, args.port, args.devices) as model:
-        # Run inference
-        num_examples = len(dataset)
-        dataset = _run_inference(dataset, model, approach, args.workers)
-        num_removed = num_examples - len(dataset)
+    model = Model(model_path, args.devices)
 
-        # Run evaluation
-        dataset = run_evaluation(
-            dataset,
-            model.tokenizer,
-            num_examples,
-            num_removed,
-            args.workers
-        )
+    # Run inference
+    num_examples = len(dataset)
+    dataset = _run_inference(dataset, model, approach, args.workers)
+    num_removed = num_examples - len(dataset)
+
+    # Run evaluation
+    dataset = run_evaluation(
+        dataset,
+        model.tokenizer,
+        num_examples,
+        num_removed,
+        args.workers
+    )
 
     # Save results to disk
     util.save_dataset(dataset, results_path, args.workers)

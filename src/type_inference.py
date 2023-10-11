@@ -90,9 +90,11 @@ class TypeInference:
         intermediate result, etc.
         """
         result: Optional[str] = content
+        old_result = result
         for inst in instructions:
             if not result:
-                break
+                return old_result
+            old_result = result
             result = self.model.edit(result, inst)
         return result
 

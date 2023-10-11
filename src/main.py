@@ -8,7 +8,7 @@ def parse_args() -> argparse.Namespace:
     cpu_count = util.cpu_count()
 
     parser = argparse.ArgumentParser(
-        description="Runs StarCoder to infer types for JavaScript")
+        description="Evaluation runner for StenoType")
 
     parser.add_argument(
         "--models_directory",
@@ -20,11 +20,6 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="results",
         help="directory to save results to")
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=8787,
-        help="port for the model server")
     parser.add_argument(
         "--devices",
         type=str,
@@ -41,11 +36,7 @@ def parse_args() -> argparse.Namespace:
 
     args = parser.parse_args()
 
-    if not args.view and not args.devices:
-        print("error: the following arguments are required: --devices")
-        exit(2)
-
-    if args.devices:
+    if not args.view:
         models_directory = Path(args.models_directory).resolve()
         args.models_directory = str(models_directory)
         if not models_directory.exists():
@@ -74,13 +65,15 @@ def main():
     # TODO: Right now we only have one evaluation dataset
     dataset = util.load_dataset("../datasets/stenotype-eval-dataset-subset")
 
+    # TODO: split inference and evaluation into separate steps
+
     # run_experiment(dataset, "starcoderbase-1b", ExperimentType.APPROACH_1, args)
     # run_experiment(
     #     dataset, "stenotype-75ce914-ckpt100", ExperimentType.APPROACH_1, args
     # )
-    run_experiment(
-        dataset, "stenotype-54d5802-ckpt100", ExperimentType.APPROACH_2, args
-    )
+    # run_experiment(
+    #     dataset, "stenotype-54d5802-ckpt100", ExperimentType.APPROACH_2, args
+    # )
     run_experiment(
         dataset, "stenotype-2b77ede-ckpt100", ExperimentType.APPROACH_3, args
     )

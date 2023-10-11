@@ -1,11 +1,9 @@
 from pathlib import Path
-from requests.exceptions import ReadTimeout
-from text_generation import Client
 from transformers import AutoTokenizer
-from typing import Optional, Self
-import shutil
-import subprocess
-import time
+from typing import Optional, Union
+from vllm import LLM, SamplingParams
+import os
+import torch
 
 FIM_PREFIX = "<fim_prefix>"
 FIM_MIDDLE = "<fim_middle>"
@@ -17,8 +15,8 @@ ENDOFTEXT = "<|endoftext|>"
 
 class Model:
     """
-    This class wraps the text_generation client and provides methods for
-    infilling. Must be used as a context manager.
+    This class wraps vLLM and provides methods for completion, infilling, and
+    editing (via the StarCoder git commit format).
     """
     CONTEXT_SIZE = 8 * 1024 # 8K tokens
     TYPE_PROPORTION = 0.25  # Assume input expands by 25% (added types) to get output
@@ -30,22 +28,22 @@ class Model:
     INPUT_SIZE = round(CONTEXT_SIZE / (2 + TYPE_PROPORTION))
     OUTPUT_SIZE = CONTEXT_SIZE - INPUT_SIZE
 
-    finalized = False
-
     def __init__(
         self,
         model_path: str,
-        port: int,
-        devices: str,
+        devices: Optional[str] = None,
+        max_tokens: int = OUTPUT_SIZE,
         max_fim_tokens: int = 50,
-        max_new_tokens: int = OUTPUT_SIZE,
         temperature: float = 0.2,
         top_p: float = 0.95,
-        max_context_length: int = 500,
-        timeout: int = 600,
+        max_context_length: int = 500
     ):
+        # Set environment variable to select the GPU device(s)
+        if devices:
+            os.environ["CUDA_VISIBLE_DEVICES"] = devices
+
+        self.max_tokens = max_tokens
         self.max_fim_tokens = max_fim_tokens
-        self.max_new_tokens = max_new_tokens
         self.temperature = temperature
         self.top_p = top_p
         self.max_context_length = max_context_length
@@ -53,73 +51,38 @@ class Model:
         self.tokenizer = AutoTokenizer.from_pretrained(Path(model_path).resolve())
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
-        self.model_path = model_path
-        self.port = port
-        self.devices = devices
-        self.timeout = timeout
-
-    def __enter__(self) -> Self:
-        print(f"Starting text-generation-inference server for {self.model_path} ...")
-
-        # Try podman, then docker
-        container_exec = shutil.which("podman") or shutil.which("docker")
-        if container_exec is None:
-            raise RuntimeError("Either podman or docker must be installed")
-
-        model_paths = Path(self.model_path).resolve().parts
-        models_directory = str(Path(*model_paths[:-1]))
-        model_name = model_paths[-1]
-
-        args = [
-            container_exec, "run",
-            "-p", f"{self.port}:80",
-            "-v", f"{models_directory}:/data",
-            "-e", f"NVIDIA_VISIBLE_DEVICES={self.devices}",
-            "-e", "HF_HUB_ENABLE_HF_TRANSFER=0",
-            "ghcr.io/huggingface/text-generation-inference:0.8",
-            "--model-id", f"/data/{model_name}",
-            "--max-input-length", "8192",
-            "--max-total-tokens", "16384",
-            "--max-waiting-tokens", "65536"
-        ]
-        self.server_process: subprocess.Popen = subprocess.Popen(
-            args, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, encoding="utf-8"
+        num_gpus = len(devices.split(",")) if devices else torch.cuda.device_count()
+        self.model = LLM(
+            model=model_path,
+            tokenizer=model_path,
+            tensor_parallel_size=num_gpus,
+            dtype="bfloat16" if torch.cuda.is_bf16_supported() else "float16",
         )
 
-        # Hack: just sleep for 10 seconds and hope the server has started
-        time.sleep(10)
-        self.client = Client(f"http://127.0.0.1:{self.port}", timeout=self.timeout)
-
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        print("Shutting down text-generation-inference server...")
-        self.server_process.terminate()
-        self.finalized = True
-        # Hack: sleep for 10 seconds before returning
-        time.sleep(10)
-
-    def _generate(self, prompt: str, **kwargs) -> Optional[str]:
+    def _generate(self, prompts: list[str], **kwargs) -> list[str]:
         """
         Call the model to generate a completion. Use a default configuration
-        that can be overridden with keyword arguments.
-        """
-        if self.finalized:
-            raise RuntimeError("Cannot generate completion after Model has "
-                               "been finalized")
+        that can be overridden with keyword arguments. See vLLM documentation
+        for all configuration options:
+        https://github.com/vllm-project/vllm/blob/v0.2.0/vllm/sampling_params.py#L15
 
+        `n` is not allowed as a config option, because this method returns a
+        single completion for each prompt. To generate multiple completions for
+        a prompt, call this method with multiple copies of the prompt.
+        """
+        prompts = [prompt.strip() for prompt in prompts]
         config = {
-            "do_sample": True,
-            "max_new_tokens": self.max_new_tokens,
             "temperature": self.temperature,
             "top_p": self.top_p,
+            "max_tokens": self.max_tokens,
         }
         config.update(kwargs)
-        try:
-            output = self.client.generate(prompt, **config).generated_text
-            return output.removesuffix(ENDOFTEXT)
-        except ReadTimeout:
-            return None
+        if "n" in config:
+            del config["n"]
+        params = SamplingParams(**config)
+
+        outputs = self.model.generate(prompts, params, use_tqdm=False)
+        return [o.outputs[0].text for o in outputs]
 
     def tokenize(self, content: str):
         # Assuming NumPy tensors consume less memory
@@ -127,14 +90,36 @@ class Model:
                               return_attention_mask=False,
                               return_tensors="np")["input_ids"][0]
 
-    def infill(self, prefix: str, suffix: str) -> Optional[str]:
+    def infill_batch(self, pairs: list[tuple[str, str]]) -> list[str]:
+        prompts = [f"{FIM_PREFIX}{pre}{FIM_SUFFIX}{suf}{FIM_MIDDLE}"
+                   for pre, suf in pairs]
+        return self._generate(prompts, max_tokens=self.max_fim_tokens)
+
+    def infill(self, prefix: str, suffix: str) -> str:
         prompt = f"{FIM_PREFIX}{prefix}{FIM_SUFFIX}{suffix}{FIM_MIDDLE}"
-        return self._generate(prompt, max_new_tokens=self.max_fim_tokens)
+        return self._generate([prompt], max_tokens=self.max_fim_tokens)[0]
 
-    def edit(self, code: str, instruction: str, prefix: str = "") -> Optional[str]:
+    def edit_batch(self, triples: list[Union[tuple[str, str], tuple[str, str, str]]]):
+        # prefix may be missing, so we unpack as a list and treat it as an empty string
+        prompts = [f"{COMMIT_BEFORE}{code}"
+                   f"{COMMIT_MSG}{instruction}"
+                   f"{COMMIT_AFTER}{''.join(prefix)}"
+                   for code, instruction, *prefix in triples]
+        return self._generate(prompts)
+
+    def edit(self, code: str, instruction: str, prefix: str = "") -> str:
         prompt = f"{COMMIT_BEFORE}{code}{COMMIT_MSG}{instruction}{COMMIT_AFTER}{prefix}"
-        return self._generate(prompt)
+        return self._generate([prompt])[0]
 
-    def complete(self, prompt: str, stop_sequences: Optional[list[str]] = []) -> str:
-        completion = self._generate(prompt, stop_sequences=stop_sequences)
-        return f"{prompt}{completion}" if completion else prompt
+    def complete_batch(
+        self,
+        prompts: list[str],
+        stop: Optional[list[str]] = None
+    ) -> list[str]:
+        completions = self._generate(prompts, stop=stop)
+        return [f"{prompt}{completion}"
+                for prompt, completion in zip(prompts, completions)]
+
+    def complete(self, prompt: str, stop: Optional[list[str]] = None) -> str:
+        completion = self._generate([prompt], stop=stop)[0]
+        return f"{prompt}{completion}"

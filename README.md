@@ -26,11 +26,9 @@ conda install nodejs=18.16.0
 (cd ts && npm install && npx tsc)
 ```
 
-4. StenoType will automatically start a container running a
-   [`text_generation`](https://github.com/huggingface/text-generation-inference)
-   server, with the
+4. Download the
    [StarCoderBase-1b](https://huggingface.co/bigcode/starcoderbase-1b).
-   model; however, the model must be downloaded first.
+   model:
 
    a. Ensure that you have a Hugging Face account.
 
@@ -46,14 +44,10 @@ conda install nodejs=18.16.0
       `pytorch_model*.bin` files, _after_ they have been converted to
       `model*.safetensors` format. The conversion happens during the first run.
 
-5. You may need to manually launch the container, see
-   `launch_inference_server.sh`. This may be necessary to convert
-   `pytorch_model.bin` to `model.safetensors` format.
-
-6. Accept the agreement for the
+5. Accept the agreement for the
    [ts-eval](https://huggingface.co/datasets/nuprl/ts-eval) evaluation dataset.
 
-7. Now you can run the experiments:
+6. Now you can run the experiments:
 
 ```bash
 python src/main.py --devices 0 --workers 10
