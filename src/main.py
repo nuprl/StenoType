@@ -101,17 +101,18 @@ def main():
             ExperimentType.APPROACH_3),
     ]
 
+    if args.infer:
+        # Make sure results don't already exist
+        results_paths = [util.get_results_name(c.model_name, args.results_directory)
+                            for c in configs]
+        results_exists = [path for path in results_paths if Path(path).exists()]
+        for p in results_exists:
+            print(f"error: output {p} already exists, please delete or rename!")
+        if results_exists:
+            exit(2)
+
     for c in configs:
         if args.infer:
-            # Make sure results don't already exist
-            results_paths = [util.get_results_name(c.model_name, args.results_directory)
-                             for c in configs]
-            results_exists = [path for path in results_paths if Path(path).exists()]
-            for p in results_exists:
-                print(f"error: output {p} already exists, please delete or rename!")
-            if results_exists:
-                exit(2)
-
             run_experiment(c, args)
         if args.evaluate:
             # TODO
