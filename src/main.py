@@ -82,6 +82,10 @@ def main():
     # maybe require all datasets to be on disk
     dataset = util.load_dataset("../datasets/stenotype-eval-dataset-subset")
 
+    # Sometimes the dataset gets cached and nothing happens
+    dataset.cleanup_cache_files()
+
+    # TODO: maybe try multiple processes (data parallelism)
     configs = [
         ExperimentConfig(
             dataset,
