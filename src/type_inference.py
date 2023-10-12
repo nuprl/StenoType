@@ -82,22 +82,6 @@ class TypeInference:
 
         return infilled_prefix
 
-    def _edit(self, content: str, instructions: list[str]) -> Optional[str]:
-        """
-        Takes multiple edit instructions, and uses them sequentually on the
-        input content. E.g. the first instruction is applied to get an
-        intermediate result, the second instruction is applied to that
-        intermediate result, etc.
-        """
-        result: Optional[str] = content
-        old_result = result
-        for inst in instructions:
-            if not result:
-                return old_result
-            old_result = result
-            result = self.model.edit(result, inst)
-        return result
-
     def infer(self, content: str) -> str:
         """
         Run type inference, i.e. type annotation prediction, using

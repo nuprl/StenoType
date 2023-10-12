@@ -1,6 +1,6 @@
 from pathlib import Path
 from transformers import AutoTokenizer
-from typing import Optional, Union
+from typing import Optional
 from vllm import LLM, SamplingParams
 import torch
 
@@ -26,7 +26,6 @@ class Tokenizer:
         return self.tokenizer(content,
                               return_attention_mask=False,
                               return_tensors="np")["input_ids"][0]
-
 
 class Model:
     """
@@ -61,7 +60,6 @@ class Model:
         self.model = LLM(
             model=model_path,
             tokenizer=model_path,
-            tensor_parallel_size=torch.cuda.device_count(),
             dtype="bfloat16" if torch.cuda.is_bf16_supported() else "float16",
         )
 
@@ -99,7 +97,7 @@ class Model:
         prompt = f"{FIM_PREFIX}{prefix}{FIM_SUFFIX}{suffix}{FIM_MIDDLE}"
         return self._generate([prompt], max_tokens=self.max_fim_tokens)[0]
 
-    def edit_batch(self, triples: list[Union[tuple[str, str], tuple[str, str, str]]]):
+    def edit_batch(self, triples: list[tuple[str, str]] | list[tuple[str, str, str]]):
         # prefix may be missing, so we unpack as a list and treat it as an empty string
         prompts = [f"{COMMIT_BEFORE}{code}"
                    f"{COMMIT_MSG}{instruction}"

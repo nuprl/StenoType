@@ -1,13 +1,10 @@
 from datasets import Dataset, IterableDataset
 from enum import Enum
-from pathlib import Path
 from typing import Any
 import argparse
 import functools
 
-from evaluation import run_evaluation
 from model import Model, Tokenizer
-from type_inference import TypeInference
 from util import transform
 import util
 
@@ -15,6 +12,17 @@ class ExperimentType(Enum):
     APPROACH_1 = 1
     APPROACH_2 = 2
     APPROACH_3 = 3
+
+class ExperimentConfig:
+    def __init__(
+        self,
+        dataset: Dataset | IterableDataset,
+        model_name: str,
+        approach: ExperimentType
+    ):
+        self.dataset = dataset
+        self.model_name = model_name
+        self.approach = approach
 
 def _add_column_without_types(
     example: dict[str, Any]
@@ -57,8 +65,9 @@ def _prepare_dataset(
 
 def _infer_on_example(
     example: dict[str, Any],
+    model: Model,
     approach: ExperimentType,
-    typeinf: TypeInference
+    num_completions: int
 ) -> dict[str, Any]:
     # For now, we're assuming TypeScript with type annotations and definitions removed.
     stripped = example["content_without_types"]
@@ -67,24 +76,28 @@ def _infer_on_example(
     match approach:
         case ExperimentType.APPROACH_1:
             # One-shot: use the instruction "Add type annotations and interfaces"
-            output = typeinf.infer_with_definitions(stripped)
+            prompt = (stripped, "Add type annotations and interfaces")
+            prompts = [prompt] * num_completions
+            outputs = model.edit_batch(prompts)
         case ExperimentType.APPROACH_2:
-            output = typeinf._edit(stripped, [
-                "Add type aliases and interfaces",
-                "Add type annotations"
-            ])
+            # Two steps: generate num_completions completions for the first
+            # instruction, then one completion for each of the results
+            prompt = (stripped, "Add type aliases and interfaces")
+            prompts = [prompt] * num_completions
+            outputs = model.edit_batch(prompts)
+            prompts = [(o, "Add type annotations") for o in outputs]
+            outputs = model.edit_batch(prompts)
         case ExperimentType.APPROACH_3:
-            output = typeinf._edit(stripped, [
-                "Add type annotations"
-                "Add type aliases and interfaces",
-            ])
+            # Two steps: generate num_completions completions for the first
+            # instruction, then one completion for each of the results
+            prompt = (stripped, "Add type annotations")
+            prompts = [prompt] * num_completions
+            outputs = model.edit_batch(prompts)
+            prompts = [(o, "Add type aliases and interfaces") for o in outputs]
+            outputs = model.edit_batch(prompts)
 
-    if output:
-        example["output"] = output
-        example["error"] = False
-    else:
-        example["output"] = ""
-        example["error"] = True
+    results = [{"output": o, "error": o == ""} for o in outputs]
+    example["results"] = util.to_compact_json(results)
 
     return example
 
@@ -93,15 +106,19 @@ def _run_inference(
     model: Model,
     tokenizer: Tokenizer,
     approach: ExperimentType,
+    num_completions: int,
     workers: int
 ) -> Dataset | IterableDataset:
-    typeinf = TypeInference(model)
     dataset = _prepare_dataset(dataset, model, tokenizer, workers)
 
-    # TODO: batch completions, or generate multiple completions
     with util.timer():
         dataset = dataset.map(
-            functools.partial(_infer_on_example, approach=approach, typeinf=typeinf),
+            functools.partial(
+                _infer_on_example,
+                model=model,
+                approach=approach,
+                num_completions=num_completions
+            ),
             desc="Inferring types"
         )
 
@@ -111,42 +128,43 @@ def _run_inference(
         "max_stars_repo_name",
         "content",
         "content_without_types",
-        "output",
-        "error",
+        "results",
     ])
 
     return dataset
 
-def run_experiment(
-    dataset: Dataset | IterableDataset,
-    model_name: str,
-    approach: ExperimentType,
-    args: argparse.Namespace
-):
+def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
     # TODO: For now, the output name is {model_name}.parquet. Later we might
     # have different experiments for a model, so we will need different names.
-    results_path = str(Path(args.results_directory, model_name).with_suffix(".parquet"))
-    if Path(results_path).exists():
-        print(f"error: output {results_path} already exists, please delete or rename!")
-        exit(2)
+    results_path = util.get_results_name(config.model_name, args.results_directory)
 
-    model_path = str(Path(args.models_directory, model_name))
+    model_path = util.get_model_path(config.model_name, args.models_directory)
     model = Model(model_path)
     tokenizer = Tokenizer(model_path)
+    dataset = config.dataset
 
-    # Run inference
     num_examples = len(dataset)
-    dataset = _run_inference(dataset, model, tokenizer, approach, args.workers)
-    num_removed = num_examples - len(dataset)
-
-    # Run evaluation
-    dataset = run_evaluation(
+    dataset = _run_inference(
         dataset,
-        tokenizer.tokenizer,
-        num_examples,
-        num_removed,
+        model,
+        tokenizer,
+        config.approach,
+        args.num_completions,
         args.workers
     )
+    num_removed = num_examples - len(dataset)
 
     # Save results to disk
     util.save_dataset(dataset, results_path, args.workers)
+
+    print("Number of examples in original:", num_examples)
+    print("Number of examples skipped:", num_removed)
+
+#     # TODO: Run evaluation
+#     dataset = run_evaluation(
+#         dataset,
+#         tokenizer.tokenizer,
+#         num_examples,
+#         num_removed,
+#         args.workers
+#     )

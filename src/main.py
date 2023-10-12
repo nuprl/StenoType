@@ -1,7 +1,7 @@
 from pathlib import Path
 import argparse
 
-from experiment import ExperimentType, run_experiment
+from experiment import ExperimentConfig, ExperimentType, run_experiment
 import util
 
 def parse_args() -> argparse.Namespace:
@@ -14,25 +14,41 @@ def parse_args() -> argparse.Namespace:
         "--models_directory",
         type=str,
         default="../models",
-        help="directory to load models from")
+        help="directory to load models from; defaults to ../models")
     parser.add_argument(
         "--results_directory",
         type=str,
         default="results",
-        help="directory to save results to")
+        help="directory to save results to; defaults to ./results")
+    parser.add_argument(
+        "--num_completions",
+        type=int,
+        default=20,
+        help="number of completions to generate for each problem")
     parser.add_argument(
         "--workers",
         type=int,
         default=cpu_count,
         help=f"maximum number of workers to use; defaults to {cpu_count}")
-    parser.add_argument(
+
+    group = parser.add_argument_group(title="task to run")
+    group.add_argument(
+        "--infer",
+        action="store_true",
+        help="run inference")
+    group.add_argument(
+        "--evaluate",
+        action="store_true",
+        help="evaluate and summarize results")
+    group.add_argument(
         "--view",
         type=str,
-        help="browse through the given dataset, one example at a time")
+        metavar="DATASET",
+        help="browse through DATASET, one example at a time")
 
     args = parser.parse_args()
 
-    if not args.view:
+    if args.infer or args.evaluate:
         models_directory = Path(args.models_directory).resolve()
         args.models_directory = str(models_directory)
         if not models_directory.exists():
@@ -45,6 +61,10 @@ def parse_args() -> argparse.Namespace:
 
         if not models_directory.exists() or not results_directory.exists():
             exit(2)
+
+    if not args.infer and not args.evaluate and not args.view:
+        print("error: must provide one of --infer, --evaluate, --view")
+        exit(2)
 
     return args
 
@@ -59,20 +79,43 @@ def main():
         return
 
     # TODO: Right now we only have one evaluation dataset
+    # maybe require all datasets to be on disk
     dataset = util.load_dataset("../datasets/stenotype-eval-dataset-subset")
 
-    # TODO: split inference and evaluation into separate steps
+    configs = [
+        ExperimentConfig(
+            dataset,
+            "starcoderbase-1b",
+            ExperimentType.APPROACH_1),
+        ExperimentConfig(
+            dataset,
+            "stenotype-75ce914-ckpt100",
+            ExperimentType.APPROACH_1),
+        ExperimentConfig(
+            dataset,
+            "stenotype-54d5802-ckpt100",
+            ExperimentType.APPROACH_2),
+        ExperimentConfig(
+            dataset,
+            "stenotype-2b77ede-ckpt100",
+            ExperimentType.APPROACH_3),
+    ]
 
-    # run_experiment(dataset, "starcoderbase-1b", ExperimentType.APPROACH_1, args)
-    # run_experiment(
-    #     dataset, "stenotype-75ce914-ckpt100", ExperimentType.APPROACH_1, args
-    # )
-    # run_experiment(
-    #     dataset, "stenotype-54d5802-ckpt100", ExperimentType.APPROACH_2, args
-    # )
-    run_experiment(
-        dataset, "stenotype-2b77ede-ckpt100", ExperimentType.APPROACH_3, args
-    )
+    for c in configs:
+        if args.infer:
+            # Make sure results don't already exist
+            results_paths = [util.get_results_name(c.model_name, args.results_directory)
+                             for c in configs]
+            results_exists = [path for path in results_paths if Path(path).exists()]
+            for p in results_exists:
+                print(f"error: output {p} already exists, please delete or rename!")
+            if results_exists:
+                exit(2)
+
+            run_experiment(c, args)
+        if args.evaluate:
+            # TODO
+            pass
 
 if __name__ == "__main__":
     main()
