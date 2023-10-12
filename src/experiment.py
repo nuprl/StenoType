@@ -3,6 +3,9 @@ from enum import Enum
 from typing import Any
 import argparse
 import functools
+import gc
+import torch
+from vllm.model_executor.parallel_utils.parallel_state import destroy_model_parallel
 
 from model import Model, Tokenizer
 from util import transform
@@ -159,6 +162,12 @@ def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
 
     print("Number of examples in original:", num_examples)
     print("Number of examples skipped:", num_removed)
+
+    # Cleanup: destroy Model/vLLM so we can start the next experiment
+    destroy_model_parallel()
+    del model
+    gc.collect()
+    torch.cuda.empty_cache()
 
 #     # TODO: Run evaluation
 #     dataset = run_evaluation(
