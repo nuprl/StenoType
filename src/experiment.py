@@ -100,7 +100,7 @@ def _infer_on_example(
             outputs = model.edit_batch(prompts)
 
     results = [{"output": o, "error": o == ""} for o in outputs]
-    example["results"] = util.to_compact_json(results)
+    example["results"] = results
 
     return example
 
@@ -137,8 +137,8 @@ def _run_inference(
     return dataset
 
 def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
-    # TODO: For now, the output name is {model_name}.parquet. Later we might
-    # have different experiments for a model, so we will need different names.
+    # For now, the output name is {model_name}.parquet. Later we might have
+    # different experiments for a model, so we will need different names.
     results_path = util.get_results_name(config.model_name, args.results_directory)
 
     model_path = util.get_model_path(config.model_name, args.models_directory)
@@ -168,12 +168,3 @@ def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
     del model
     gc.collect()
     torch.cuda.empty_cache()
-
-#     # TODO: Run evaluation
-#     dataset = run_evaluation(
-#         dataset,
-#         tokenizer.tokenizer,
-#         num_examples,
-#         num_removed,
-#         args.workers
-#     )

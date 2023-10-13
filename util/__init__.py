@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Optional
 import datasets
 import difflib
-import json
 import os
 
 ROOT_DIR = Path(Path(__file__).parent).parent
@@ -45,12 +44,9 @@ def load_dataset(
 
 def save_dataset(
     dataset: Dataset | IterableDataset,
-    output: Optional[str],
+    output: str,
     workers: int
-) -> None:
-    if not output:
-        return
-
+):
     print(f"Saving results to {output}")
     if output.endswith(".parquet"):
         dataset.to_parquet(output)
@@ -64,9 +60,6 @@ def get_results_name(model_name: str, results_directory: str) -> str:
 
 def get_model_path(model_name: str, models_directory: str) -> str:
     return str(Path(models_directory, model_name))
-
-def to_compact_json(content: Any) -> str:
-    return json.dumps(content, separators=(',', ':'))
 
 @contextmanager
 def timer():

@@ -1,6 +1,8 @@
 from pathlib import Path
 import argparse
+import datasets
 
+from evaluation import run_evaluation
 from experiment import ExperimentConfig, ExperimentType, run_experiment
 import util
 
@@ -69,10 +71,14 @@ def parse_args() -> argparse.Namespace:
     return args
 
 def main():
+    # Don't cache datasets
+    datasets.disable_caching()
+
     args = parse_args()
 
     # Early return, just view the (results) dataset
     if args.view:
+        # TODO: this will need to be redone since we have multiple outputs
         dataset = util.load_dataset(args.view)
         for i, d in enumerate(dataset):
             util.print_result(d, i)
@@ -80,11 +86,10 @@ def main():
 
     # TODO: Right now we only have one evaluation dataset
     # maybe require all datasets to be on disk
+    # TODO: this loads the dataset even when we don't need it (e.g. for --evaluate)
     dataset = util.load_dataset("../datasets/stenotype-eval-dataset-subset")
 
-    # Sometimes the dataset gets cached and nothing happens
-    dataset.cleanup_cache_files()
-
+    # TODO: do we want to hardcode experiments or pass via command line args?
     # TODO: maybe try multiple processes (data parallelism)
     configs = [
         ExperimentConfig(
@@ -108,7 +113,7 @@ def main():
     if args.infer:
         # Make sure results don't already exist
         results_paths = [util.get_results_name(c.model_name, args.results_directory)
-                            for c in configs]
+                         for c in configs]
         results_exists = [path for path in results_paths if Path(path).exists()]
         for p in results_exists:
             print(f"error: output {p} already exists, please delete or rename!")
@@ -119,8 +124,7 @@ def main():
         if args.infer:
             run_experiment(c, args)
         if args.evaluate:
-            # TODO
-            pass
+            run_evaluation(c, args)
 
 if __name__ == "__main__":
     main()
