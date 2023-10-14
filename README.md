@@ -50,15 +50,20 @@ conda install nodejs=18.16.0
 6. Now you can run the experiments:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python src/main.py --workers 10
+# To run inference (this is very slow):
+CUDA_VISIBLE_DEVICES=0 python src/main.py --infer --workers 10
+
+# To evaluate (this is CPU-bound):
+python src/main.py --evaluate --workers 24
+
+# To generate dataset-level summaries (this is pretty fast):
+python src/main.py --summarize --workers 10
 ```
 
 ## Dependencies
 
   * git
   * Python 3
-  * [Podman](https://podman.io/) (or Docker) with the
-    [NVIDIA container toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
 
 Using [Conda](https://docs.conda.io/en/latest/) or [virtual
 environments](https://docs.python.org/3/library/venv.html) is recommended.
