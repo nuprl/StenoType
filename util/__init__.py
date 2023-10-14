@@ -1,10 +1,13 @@
+from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import datetime
 from datasets import Dataset, IterableDataset
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Generator, Optional, Type
 import datasets
 import difflib
+import json
+import numpy as np
 import os
 
 ROOT_DIR = Path(Path(__file__).parent).parent
@@ -54,6 +57,30 @@ def save_dataset(
         dataset.to_json(output)
     else:
         dataset.save_to_disk(output, num_proc=workers)
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)
+
+def read_jsonl(path: Path | str) -> Generator[dict, None, None]:
+    with open(path) as f:
+        for line in f:
+            yield json.loads(line)
+
+def write_jsonl(
+        path: Path | str,
+        data: Iterable[Any],
+        encoder: Optional[Type[json.JSONEncoder]] = None
+):
+    with open(path, "w") as f:
+        for item in data:
+            f.write(json.dumps(item, cls=encoder) + "\n")
 
 def get_results_name(model_name: str, results_directory: str) -> str:
     return str(Path(results_directory, model_name).with_suffix(".parquet"))

@@ -2,7 +2,7 @@ from pathlib import Path
 import argparse
 import datasets
 
-from evaluation import run_evaluation
+from evaluation import run_evaluation, summarize_results
 from experiment import ExperimentConfig, ExperimentType, run_experiment
 import util
 
@@ -41,7 +41,11 @@ def parse_args() -> argparse.Namespace:
     group.add_argument(
         "--evaluate",
         action="store_true",
-        help="evaluate and summarize results")
+        help="evaluate results")
+    group.add_argument(
+        "--summarize",
+        action="store_true",
+        help="summarize results")
     group.add_argument(
         "--view",
         type=str,
@@ -64,8 +68,8 @@ def parse_args() -> argparse.Namespace:
         if not models_directory.exists() or not results_directory.exists():
             exit(2)
 
-    if not args.infer and not args.evaluate and not args.view:
-        print("error: must provide one of --infer, --evaluate, --view")
+    if not args.infer and not args.evaluate and not args.summarize and not args.view:
+        print("error: must provide one of --infer, --evaluate, --summarize, --view")
         exit(2)
 
     return args
@@ -125,6 +129,9 @@ def main():
             run_experiment(c, args)
         if args.evaluate:
             run_evaluation(c, args)
+
+    if args.summarize:
+        summarize_results(configs, args)
 
 if __name__ == "__main__":
     main()
