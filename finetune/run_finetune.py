@@ -12,6 +12,7 @@ import os
 from finetune_lib import DatasetConfig
 import finetune_lib as finetune
 import get_training_example
+import util
 
 """
 Edit the constants and configuration below to use for your own fine-tuning task.
@@ -45,10 +46,10 @@ TOTAL_TOKENS = 7_100_000_000 * 2
 SEQUENCE_LENGTH = 8*1024
 EPOCHS = 1
 BATCH_SIZE = 2
-GRADIENT_ACCUMULATION_STEPS = 16
+GRADIENT_ACCUMULATION_STEPS = 4
 
 # Roughly 1.7M examples
-# Roughly 54K steps
+# Roughly 217K / NUM_GPUS steps
 ########## StarCoder-1B on an A100/H100
 
 NUM_EXAMPLES = TOTAL_TOKENS // SEQUENCE_LENGTH
@@ -74,7 +75,7 @@ TRAINING_ARGS = TrainingArguments(
     gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
     learning_rate=2.5e-5,
     weight_decay=0.05,
-    max_steps=100,
+    max_steps=300,
     lr_scheduler_type="cosine",
     warmup_steps=50,
     logging_steps=1,
@@ -93,7 +94,7 @@ TRAINING_ARGS = TrainingArguments(
 )
 
 DATASET_CONFIG = DatasetConfig(
-    get_content=get_training_example.get3,
+    get_content=get_training_example.default,
     streaming=True,
     size_valid_set=10_000,
     shuffle_buffer=5_000,
@@ -103,13 +104,8 @@ DATASET_CONFIG = DatasetConfig(
 def get_dataset(
     num_workers: int
 ) -> Dataset | IterableDataset:
-    return load_dataset(
-        "nuprl/ts-training",
-        split="train",
-        revision="v1.1p1",
-        num_proc=num_workers if not DATASET_CONFIG.streaming else None,
-        streaming=DATASET_CONFIG.streaming,
-    )
+    dataset = util.load_dataset("../../datasets/ts-training-get1")
+    return dataset.to_iterable_dataset(num_shards=100)
 
 """
 Edits should not be required after this point.
