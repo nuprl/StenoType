@@ -27,7 +27,7 @@ conda install nodejs=18.16.0
 ```
 
 4. Download the
-   [StarCoderBase-1b](https://huggingface.co/bigcode/starcoderbase-1b).
+   [StarCoderBase-1b](https://huggingface.co/bigcode/starcoderbase-1b)
    model:
 
    a. Ensure that you have a Hugging Face account.
@@ -40,9 +40,8 @@ conda install nodejs=18.16.0
    d. In a directory of your choosing, e.g. `../models`,
       run `git clone git@hf.co:bigcode/starcoderbase-1b`.
 
-   e. To save space, you can delete the `.git` directory and
-      `pytorch_model*.bin` files, _after_ they have been converted to
-      `model*.safetensors` format. The conversion happens during the first run.
+   e. To save space, you can delete the `.git` directory (and possibly
+      `pytorch_model*.bin` if `model*.safetensors` already exists).
 
 5. Accept the agreement for the
    [ts-eval](https://huggingface.co/datasets/nuprl/ts-eval) evaluation dataset.

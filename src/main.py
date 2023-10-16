@@ -102,15 +102,15 @@ def main():
             ExperimentType.APPROACH_1),
         ExperimentConfig(
             dataset,
-            "stenotype-75ce914-ckpt100",
+            "stenotype-1b-75ce914-ckpt100",
             ExperimentType.APPROACH_1),
         ExperimentConfig(
             dataset,
-            "stenotype-54d5802-ckpt100",
+            "stenotype-1b-54d5802-ckpt100",
             ExperimentType.APPROACH_2),
         ExperimentConfig(
             dataset,
-            "stenotype-2b77ede-ckpt100",
+            "stenotype-1b-2b77ede-ckpt100",
             ExperimentType.APPROACH_3),
     ]
 

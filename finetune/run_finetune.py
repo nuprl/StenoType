@@ -75,11 +75,11 @@ TRAINING_ARGS = TrainingArguments(
     gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
     learning_rate=2.5e-5,
     weight_decay=0.05,
-    max_steps=300,
+    max_steps=1000,
     lr_scheduler_type="cosine",
     warmup_steps=50,
     logging_steps=1,
-    save_steps=100, # save_steps must be a multiple of eval_steps
+    save_steps=200, # save_steps must be a multiple of eval_steps
     bf16=True,
     fp16=False,
     local_rank=0,
@@ -104,7 +104,7 @@ DATASET_CONFIG = DatasetConfig(
 def get_dataset(
     num_workers: int
 ) -> Dataset | IterableDataset:
-    dataset = util.load_dataset("../../datasets/ts-training-get1")
+    dataset = util.load_dataset("../../datasets/ts-training-get3")
     return dataset.to_iterable_dataset(num_shards=100)
 
 """
