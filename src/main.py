@@ -36,8 +36,10 @@ def parse_args() -> argparse.Namespace:
     group = parser.add_argument_group(title="task to run")
     group.add_argument(
         "--infer",
-        action="store_true",
-        help="run inference")
+        nargs="*",
+        metavar="CONFIG",
+        help="run inference (on the configurations indexed by [CONFIG ...], "
+             "or all configurations if no indices given)")
     group.add_argument(
         "--evaluate",
         action="store_true",
@@ -51,10 +53,18 @@ def parse_args() -> argparse.Namespace:
         type=str,
         metavar="DATASET",
         help="browse through DATASET, one example at a time")
+    group.add_argument(
+        "--show_configs",
+        action="store_true",
+        help="print configuration indices (to be used with --infer)")
 
     args = parser.parse_args()
 
-    if args.infer or args.evaluate:
+    if args.infer is not None and any(not x.isdigit() for x in args.infer):
+        print("error: provided indices must be integers")
+        exit(2)
+
+    if args.infer is not None or args.evaluate:
         models_directory = Path(args.models_directory).resolve()
         args.models_directory = str(models_directory)
         if not models_directory.exists():
@@ -68,7 +78,9 @@ def parse_args() -> argparse.Namespace:
         if not models_directory.exists() or not results_directory.exists():
             exit(2)
 
-    if not args.infer and not args.evaluate and not args.summarize and not args.view:
+    if (args.infer is None and not args.evaluate and not args.summarize
+            and not args.view and not args.show_configs):
+        parser.print_usage()
         print("error: must provide one of --infer, --evaluate, --summarize, --view")
         exit(2)
 
@@ -112,25 +124,27 @@ def main():
         #     dataset,
         #     "stenotype-1b-2b77ede-ckpt100",
         #     ExperimentType.APPROACH_3),
+
+        # ExperimentConfig(
+        #     dataset,
+        #     "stenotype-1b-7904b4a-ckpt200",
+        #     ExperimentType.APPROACH_1),
+        # ExperimentConfig(
+        #     dataset,
+        #     "stenotype-1b-7904b4a-ckpt600",
+        #     ExperimentType.APPROACH_1),
+        # ExperimentConfig(
+        #     dataset,
+        #     "stenotype-1b-7904b4a-ckpt1000",
+        #     ExperimentType.APPROACH_1),
+
+        # ExperimentConfig(
+        #     dataset,
+        #     "stenotype-1b-1753dc0-ckpt200",
+        #     ExperimentType.APPROACH_3),
         ExperimentConfig(
             dataset,
-            "stenotype-1b-7904b4a-ckpt200",
-            ExperimentType.APPROACH_1),
-        ExperimentConfig(
-            dataset,
-            "stenotype-1b-7904b4a-ckpt600",
-            ExperimentType.APPROACH_1),
-        ExperimentConfig(
-            dataset,
-            "stenotype-1b-7904b4a-ckpt1000",
-            ExperimentType.APPROACH_1),
-        ExperimentConfig(
-            dataset,
-            "stenotype-1b-1753dc0-ckpt200",
-            ExperimentType.APPROACH_3),
-        ExperimentConfig(
-            dataset,
-            "stenotype-1b-1753dc0-ckpt400",
+            "stenotype-1b-1753dc0-ckpt600",
             ExperimentType.APPROACH_3),
         ExperimentConfig(
             dataset,
@@ -138,7 +152,16 @@ def main():
             ExperimentType.APPROACH_3),
     ]
 
-    if args.infer:
+    if args.show_configs:
+        for i, c in enumerate(configs):
+            print(i, c.model_name, c.approach)
+        exit(2)
+
+    if args.infer is not None:
+        # If indices given, then select only those configs
+        if args.infer:
+            configs = [configs[int(i)] for i in args.infer]
+
         # Make sure results don't already exist
         results_paths = [util.get_results_name(c.model_name, args.results_directory)
                          for c in configs]
@@ -149,7 +172,7 @@ def main():
             exit(2)
 
     for c in configs:
-        if args.infer:
+        if args.infer is not None:
             run_experiment(c, args)
         if args.evaluate:
             run_evaluation(c, args)
