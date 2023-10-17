@@ -96,21 +96,45 @@ def main():
     # TODO: do we want to hardcode experiments or pass via command line args?
     # TODO: maybe try multiple processes (data parallelism)
     configs = [
+        # ExperimentConfig(
+        #     dataset,
+        #     "starcoderbase-1b",
+        #     ExperimentType.APPROACH_1),
+        # ExperimentConfig(
+        #     dataset,
+        #     "stenotype-1b-75ce914-ckpt100",
+        #     ExperimentType.APPROACH_1),
+        # ExperimentConfig(
+        #     dataset,
+        #     "stenotype-1b-54d5802-ckpt100",
+        #     ExperimentType.APPROACH_2),
+        # ExperimentConfig(
+        #     dataset,
+        #     "stenotype-1b-2b77ede-ckpt100",
+        #     ExperimentType.APPROACH_3),
         ExperimentConfig(
             dataset,
-            "starcoderbase-1b",
+            "stenotype-1b-7904b4a-ckpt200",
             ExperimentType.APPROACH_1),
         ExperimentConfig(
             dataset,
-            "stenotype-1b-75ce914-ckpt100",
+            "stenotype-1b-7904b4a-ckpt600",
             ExperimentType.APPROACH_1),
         ExperimentConfig(
             dataset,
-            "stenotype-1b-54d5802-ckpt100",
-            ExperimentType.APPROACH_2),
+            "stenotype-1b-7904b4a-ckpt1000",
+            ExperimentType.APPROACH_1),
         ExperimentConfig(
             dataset,
-            "stenotype-1b-2b77ede-ckpt100",
+            "stenotype-1b-1753dc0-ckpt200",
+            ExperimentType.APPROACH_3),
+        ExperimentConfig(
+            dataset,
+            "stenotype-1b-1753dc0-ckpt400",
+            ExperimentType.APPROACH_3),
+        ExperimentConfig(
+            dataset,
+            "stenotype-1b-1753dc0-ckpt1000",
             ExperimentType.APPROACH_3),
     ]
 
