@@ -1,4 +1,4 @@
-from datasets import Dataset, IterableDataset, load_dataset
+from datasets import Dataset, IterableDataset
 from pathlib import Path
 from transformers import (
     AutoTokenizer,

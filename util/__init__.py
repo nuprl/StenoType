@@ -20,7 +20,7 @@ def load_dataset(
     dataset: str,
     split: Optional[str] = None,
     revision: Optional[str] = None,
-    workers: Optional[int] = None
+    num_proc: Optional[int] = None
 ) -> Dataset | IterableDataset:
     """
     Load a dataset. Tries to interpret dataset as a path and loads a local file
@@ -41,7 +41,7 @@ def load_dataset(
             dataset,
             split=split,
             revision=revision,
-            num_proc=workers
+            num_proc=num_proc
         )
 
 def save_dataset(

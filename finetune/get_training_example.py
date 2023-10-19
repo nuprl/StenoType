@@ -1,7 +1,10 @@
-from typing import Optional
+from typing import Any, Optional
+import argparse
+import functools
 import random
 
 from util import transform
+import util
 
 """
 This file contains several implementations of transforming a training example
@@ -122,3 +125,57 @@ def get3(element: dict) -> Optional[str]:
         return commit_format(
             no_defs, "Add type aliases and interfaces", original
         )
+
+APPROACHES = {
+    "get1": get1,
+    "get2": get2,
+    "get3": get3
+}
+
+def _transform_example(example: dict[str, Any], approach: int) -> dict[str, Any]:
+    if approach == 1:
+        example["content"] = get1(example)
+    elif approach == 2:
+        example["content"] = get2(example)
+    elif approach == 3:
+        example["content"] = get3(example)
+    return example
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--workers", type=int, default=util.cpu_count())
+    parser.add_argument("--approach", choices=APPROACHES.keys(), required=True)
+    parser.add_argument("--output", type=str, required=True)
+
+    return parser.parse_args()
+
+def main():
+    """
+    Use this script to preprocess a dataset and save it to disk.
+    """
+    args = get_args()
+    random.seed(args.seed)
+
+    dataset = util.load_dataset(
+        "nuprl/ts-training",
+        split="train",
+        revision="v1.1p1",
+        num_proc=args.workers
+    )
+
+    if args.approach == "get1":
+        approach = 1
+    elif args.approach == "get2":
+        approach = 2
+    elif args.approach == "get3":
+        approach = 3
+
+    new_dataset = dataset.map(
+        functools.partial(_transform_example, approach=approach),
+        num_proc=args.workers
+    )
+    util.save_dataset(new_dataset, args.output, args.workers)
+
+if __name__ == "__main__":
+    main()

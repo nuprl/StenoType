@@ -100,6 +100,8 @@ for other tasks. To use these scripts for your own task:
      editing the `get_content` function which processes dataset examples for
      training, and updating how the dataset is loaded (which could be loaded
      from the Hugging Face Hub or disk).
+  3. See `get_training_example.py` for helper functions for pre-processing a
+     training dataset.
 
 You should not need to modify `finetune_lib.py` or the `main` function of
 `run_finetune.py`.
