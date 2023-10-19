@@ -28,12 +28,16 @@ conda install nodejs=18.16.0
 
 4. Download the
    [StarCoderBase-1b](https://huggingface.co/bigcode/starcoderbase-1b)
-   model:
+   and
+   [StarCoderBase-7b](https://huggingface.co/bigcode/starcoderbase-7b)
+   models:
 
    a. Ensure that you have a Hugging Face account.
 
    b. Accept the agreement for
-      [StarCoderBase-1b](https://huggingface.co/bigcode/starcoderbase-1b).
+      [StarCoderBase-1b](https://huggingface.co/bigcode/starcoderbase-1b) and
+      [StarCoderBase-7b](https://huggingface.co/bigcode/starcoderbase-7b).
+
 
    c. On the command line, log into Hugging Face with `huggingface-cli login`.
 
@@ -57,6 +61,12 @@ python src/main.py --evaluate --workers 24
 
 # To generate dataset-level summaries (this is pretty fast):
 python src/main.py --summarize --workers 10
+```
+
+7. To browse the results, you can use the viewer. Type "help" for help.
+
+```bash
+python src/viewer.py --dataset path/to/results/dataset.parquet
 ```
 
 ## Dependencies

@@ -49,11 +49,6 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="summarize results")
     group.add_argument(
-        "--view",
-        type=str,
-        metavar="DATASET",
-        help="browse through DATASET, one example at a time")
-    group.add_argument(
         "--show_configs",
         action="store_true",
         help="print configuration indices (to be used with --infer)")
@@ -79,9 +74,9 @@ def parse_args() -> argparse.Namespace:
             exit(2)
 
     if (args.infer is None and not args.evaluate and not args.summarize
-            and not args.view and not args.show_configs):
+            and not args.show_configs):
         parser.print_usage()
-        print("error: must provide one of --infer, --evaluate, --summarize, --view")
+        print("error: must provide one of --infer, --evaluate, --summarize")
         exit(2)
 
     return args
@@ -91,14 +86,6 @@ def main():
     datasets.disable_caching()
 
     args = parse_args()
-
-    # Early return, just view the (results) dataset
-    if args.view:
-        # TODO: this will need to be redone since we have multiple outputs
-        dataset = util.load_dataset(args.view)
-        for i, d in enumerate(dataset):
-            util.print_result(d, i)
-        return
 
     # TODO: Right now we only have one evaluation dataset
     # maybe require all datasets to be on disk

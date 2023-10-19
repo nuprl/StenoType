@@ -12,8 +12,27 @@ from util import transform
 import util
 
 class ExperimentType(Enum):
+    """
+    One-shot: use the instruction "Add type annotations and interfaces".
+    """
     APPROACH_1 = 1
+
+    """
+    Two steps: generate num_completions completions for the first instruction,
+    then one completion for each of the results.
+    Instructions:
+      1. Add type aliases and interfaces.
+      2. Add type annotations.
+    """
     APPROACH_2 = 2
+
+    """
+    Two steps: generate num_completions completions for the first instruction,
+    then one completion for each of the results.
+    Instructions:
+      1. Add type annotations.
+      2. Add type aliases and interfaces.
+    """
     APPROACH_3 = 3
 
 class ExperimentConfig:
