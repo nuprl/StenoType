@@ -221,8 +221,11 @@ def is_child_of_export(start_node: Node) -> bool:
         return start_node.parent.type == "export_statement"
     return False
 
-def delete_type_definitions(content: str) -> str:
-    """Deletes (non-class) type definitions from the given string."""
+def extract_type_definition_nodes(content: str) -> list[Node]:
+    """
+    Returns a list of nodes, representing (non-class) type definitions from the
+    given string.
+    """
     captures = run_query(content,
         """
         [
@@ -235,7 +238,18 @@ def delete_type_definitions(content: str) -> str:
         ]
         """)
     nodes = [c[0] for c in captures if not is_child_of_export(c[0])]
+    return nodes
+
+def delete_type_definitions(content: str) -> str:
+    """Deletes (non-class) type definitions from the given string."""
+    nodes = extract_type_definition_nodes(content)
     return delete_nodes(content, nodes)
+
+def get_name_from_type_definition(node: Node) -> str:
+    """Given a type definition node, return the name of the type."""
+    query = LANGUAGE.query("(type_identifier) @name")
+    captures = query.captures(node)
+    return node_to_str(captures[0][0]).strip()
 
 def is_child_type_assertion(start_node: Node) -> bool:
     """Checks if any of the parent nodes is a type assertion node."""
