@@ -77,14 +77,14 @@ TRAINING_ARGS = TrainingArguments(
     weight_decay=0.05,
     max_steps=1000,
     lr_scheduler_type="cosine",
-    warmup_steps=50,
+    warmup_steps=100,
     logging_steps=1,
-    save_steps=200, # save_steps must be a multiple of eval_steps
+    save_steps=250, # save_steps must be a multiple of eval_steps
     bf16=True,
     fp16=False,
     local_rank=0,
     dataloader_drop_last=True,
-    eval_steps=25, # save_steps must be a multiple of eval_steps
+    eval_steps=50, # save_steps must be a multiple of eval_steps
     run_name="StarCoder-finetuned",
     optim="adamw_torch",
     report_to="wandb",
@@ -104,7 +104,7 @@ DATASET_CONFIG = DatasetConfig(
 def get_dataset(
     num_workers: int
 ) -> Dataset | IterableDataset:
-    dataset = util.load_dataset("../../datasets/ts-training-get3")
+    dataset = util.load_dataset("../../datasets/ts-training-get4")
     return dataset.to_iterable_dataset(num_shards=100)
 
 """
