@@ -1,23 +1,25 @@
 from datasets import Dataset, IterableDataset
-from enum import Enum
-from typing import Any
+from typing import Any, Callable
+from vllm.model_executor.parallel_utils.parallel_state import destroy_model_parallel
 import argparse
 import functools
 import gc
 import random
 import torch
-from vllm.model_executor.parallel_utils.parallel_state import destroy_model_parallel
 
 from model import Model, Tokenizer
 from util import transform
 import util
 
-class ExperimentType(Enum):
+def approach1(model: Model, num_completions: int, original: str) -> list[str]:
     """
     One-shot: use the instruction "Add type annotations and interfaces".
     """
-    APPROACH_1 = 1
+    prompt = (original, "Add type annotations and interfaces")
+    prompts = [prompt] * num_completions
+    return model.edit_batch(prompts)
 
+def approach2(model: Model, num_completions: int, original: str) -> list[str]:
     """
     Two steps: generate num_completions completions for the first instruction,
     then one completion for each of the results.
@@ -25,8 +27,13 @@ class ExperimentType(Enum):
       1. Add type aliases and interfaces.
       2. Add type annotations.
     """
-    APPROACH_2 = 2
+    prompt = (original, "Add type aliases and interfaces")
+    prompts = [prompt] * num_completions
+    outputs = model.edit_batch(prompts)
+    prompts = [(o, "Add type annotations") for o in outputs]
+    return model.edit_batch(prompts)
 
+def approach3(model: Model, num_completions: int, original: str) -> list[str]:
     """
     Two steps: generate num_completions completions for the first instruction,
     then one completion for each of the results.
@@ -34,8 +41,13 @@ class ExperimentType(Enum):
       1. Add type annotations.
       2. Add type aliases and interfaces.
     """
-    APPROACH_3 = 3
+    prompt = (original, "Add type annotations")
+    prompts = [prompt] * num_completions
+    outputs = model.edit_batch(prompts)
+    prompts = [(o, "Add type aliases and interfaces") for o in outputs]
+    return model.edit_batch(prompts)
 
+def approach4(model: Model, num_completions: int, original: str) -> list[str]:
     """
     Multiple steps:
       1. Generate num_completions completions for the instruction:
@@ -45,22 +57,54 @@ class ExperimentType(Enum):
          the instruction:
            "Add a type alias or interface for T"
     """
-    APPROACH_4 = 4
+    # TODO: test this on a small dataset
+    MAX_TRIES = 10
+
+    # First generate num_completions completions to add type annotations
+    prompt = (original, "Add type annotations")
+    prompts = [prompt] * num_completions
+    outputs = model.edit_batch(prompts)
+
+    # Now loop to add type definitions
+    final_outputs = []
+    counter = 1
+    while True:
+        # Get list of undefined types for each output
+        outputs_and_undef = [(o, transform.get_undefined_type_names(o))
+                             for o in outputs]
+
+        # Partition the outputs on whether they have undefined types
+        done, todo = util.partition_list(lambda p: not p[1], outputs_and_undef)
+
+        # Append the code outputs (not the types) to final_outputs
+        final_outputs += [d for d, _ in done]
+
+        # Exit the loop if there's nothing left or we exceeded MAX_TRIES
+        if not todo or counter > MAX_TRIES:
+            break
+
+        # For each completion in todo, pick one of the undefined types
+        # and construct a prompt
+        prompts = [(code,
+                    f"Add a type alias or interface for {random.choice(types)}")
+                   for code, types in todo]
+        outputs = model.edit_batch(prompts)
+        counter += 1
+
+    return final_outputs
 
 class ExperimentConfig:
     def __init__(
         self,
         dataset: Dataset | IterableDataset,
         model_name: str,
-        approach: ExperimentType
+        approach: Callable[[Model, int, str], list[str]]
     ):
         self.dataset = dataset
         self.model_name = model_name
         self.approach = approach
 
-def _add_column_without_types(
-    example: dict[str, Any]
-) -> dict[str, Any]:
+def _add_column_without_types(example: dict[str, Any]) -> dict[str, Any]:
     # Delete type annotations and definitions
     content = example["content"]
     stripped = transform.delete_types(content)
@@ -100,63 +144,14 @@ def _prepare_dataset(
 def _infer_on_example(
     example: dict[str, Any],
     model: Model,
-    approach: ExperimentType,
+    approach: Callable[[Model, int, str], list[str]],
     num_completions: int
 ) -> dict[str, Any]:
     # For now, we're assuming TypeScript with type annotations and definitions removed.
     stripped = example["content_without_types"]
 
     # Run type inference, depending on the approach we're using
-    match approach:
-        case ExperimentType.APPROACH_1:
-            # One-shot: use the instruction "Add type annotations and interfaces"
-            prompt = (stripped, "Add type annotations and interfaces")
-            prompts = [prompt] * num_completions
-            final_outputs = model.edit_batch(prompts)
-        case ExperimentType.APPROACH_2:
-            # Two steps: generate num_completions completions for the first
-            # instruction, then one completion for each of the results
-            prompt = (stripped, "Add type aliases and interfaces")
-            prompts = [prompt] * num_completions
-            outputs = model.edit_batch(prompts)
-            prompts = [(o, "Add type annotations") for o in outputs]
-            final_outputs = model.edit_batch(prompts)
-        case ExperimentType.APPROACH_3:
-            # Two steps: generate num_completions completions for the first
-            # instruction, then one completion for each of the results
-            prompt = (stripped, "Add type annotations")
-            prompts = [prompt] * num_completions
-            outputs = model.edit_batch(prompts)
-            prompts = [(o, "Add type aliases and interfaces") for o in outputs]
-            final_outputs = model.edit_batch(prompts)
-        case ExperimentType.APPROACH_4:
-            # TODO: test this on a small dataset
-            # First generate num_completions completions to add type annotations
-            prompt = (stripped, "Add type annotations")
-            prompts = [prompt] * num_completions
-            outputs = model.edit_batch(prompts)
-            final_outputs = []
-            # Set a limit of 10 tries
-            counter = 1
-            while True:
-                # Get list of undefined types for each output
-                outputs_and_undef = [(o, transform.get_undefined_type_names(o))
-                                    for o in outputs]
-                # Partition the outputs on whether they have undefined types
-                done, todo = util.partition_list(lambda p: not p[1],
-                                                 outputs_and_undef)
-                # Append the code outputs (not the types) to final_outputs
-                final_outputs += [d for d, _ in done]
-                if not todo or counter > 10:
-                    break
-                # For each completion in todo, pick one of the undefined types
-                # and construct a prompt
-                prompts = [(code,
-                            "Add a type alias or interface for "
-                            f"{random.choice(types)}")
-                           for code, types in todo]
-                outputs = model.edit_batch(prompts)
-                counter += 1
+    final_outputs = approach(model, num_completions, stripped)
 
     results = [{"output": o, "error": o == ""} for o in final_outputs]
     example["results"] = results
@@ -167,7 +162,7 @@ def _run_inference(
     dataset: Dataset | IterableDataset,
     model: Model,
     tokenizer: Tokenizer,
-    approach: ExperimentType,
+    approach: Callable[[Model, int, str], list[str]],
     num_completions: int,
     workers: int
 ) -> Dataset | IterableDataset:

@@ -3,7 +3,8 @@ import argparse
 import datasets
 
 from evaluation import run_evaluation, summarize_results
-from experiment import ExperimentConfig, ExperimentType, run_experiment
+from experiment import ExperimentConfig, run_experiment
+import experiment
 import util
 
 def parse_args() -> argparse.Namespace:
@@ -96,62 +97,62 @@ def main():
         ExperimentConfig(
             dataset,
             "starcoderbase-1b",
-            ExperimentType.APPROACH_1),
+            experiment.approach1),
         ExperimentConfig(
             dataset,
             "stenotype-1b-75ce914-ckpt100",
-            ExperimentType.APPROACH_1),
+            experiment.approach1),
         ExperimentConfig(
             dataset,
             "stenotype-1b-54d5802-ckpt100",
-            ExperimentType.APPROACH_2),
+            experiment.approach2),
         ExperimentConfig(
             dataset,
             "stenotype-1b-2b77ede-ckpt100",
-            ExperimentType.APPROACH_3),
+            experiment.approach3),
 
         ExperimentConfig(
             dataset,
             "stenotype-1b-7904b4a-ckpt200",
-            ExperimentType.APPROACH_1),
+            experiment.approach1),
         ExperimentConfig(
             dataset,
             "stenotype-1b-7904b4a-ckpt600",
-            ExperimentType.APPROACH_1),
+            experiment.approach1),
         ExperimentConfig(
             dataset,
             "stenotype-1b-7904b4a-ckpt1000",
-            ExperimentType.APPROACH_1),
+            experiment.approach1),
 
         ExperimentConfig(
             dataset,
             "stenotype-1b-1753dc0-ckpt200",
-            ExperimentType.APPROACH_3),
+            experiment.approach3),
         ExperimentConfig(
             dataset,
             "stenotype-1b-1753dc0-ckpt600",
-            ExperimentType.APPROACH_3),
+            experiment.approach3),
         ExperimentConfig(
             dataset,
             "stenotype-1b-1753dc0-ckpt1000",
-            ExperimentType.APPROACH_3),
+            experiment.approach3),
 
         ExperimentConfig(
             dataset,
             "stenotype-1b-ef65cb9-ckpt250",
-            ExperimentType.APPROACH_4),
+            experiment.approach4),
         ExperimentConfig(
             dataset,
             "stenotype-1b-ef65cb9-ckpt500",
-            ExperimentType.APPROACH_4),
+            experiment.approach4),
         ExperimentConfig(
             dataset,
             "stenotype-1b-ef65cb9-ckpt750",
-            ExperimentType.APPROACH_4),
+            experiment.approach4),
         ExperimentConfig(
             dataset,
             "stenotype-1b-ef65cb9-ckpt1000",
-            ExperimentType.APPROACH_4),
+            experiment.approach4),
     ]
 
     if args.show_configs:
