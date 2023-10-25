@@ -3,6 +3,7 @@ import argparse
 import datasets
 import functools
 import random
+import tree_sitter
 
 from util import transform
 import util
@@ -160,7 +161,7 @@ def get4(element: dict[str, Any]) -> Optional[str]:
     else:
         # For each node, flip a coin to determine if we delete or keep it
         # Make sure we delete at least one node
-        to_delete = []
+        to_delete: list[tree_sitter.Node] = []
         while len(to_delete) == 0:
             to_delete = [n for n in typedef_nodes if random.randint(0, 1) == 0]
 
@@ -176,7 +177,7 @@ def get4(element: dict[str, Any]) -> Optional[str]:
         after_code = transform.delete_nodes(original, to_delete)
 
         # Get the name of the type we're keeping, so we can add it to the prompt
-        type_to_add = transform.get_name_from_type_definition(keep_node)
+        type_to_add = transform.get_type_name(keep_node)
 
         return commit_format(
             before_code,

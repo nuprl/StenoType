@@ -200,8 +200,10 @@ def is_child_type_annotation(start_node: Node) -> bool:
         node = node.parent
     return False
 
-def delete_type_annotations(content: str) -> str:
-    """Deletes type annotations from the given string."""
+def extract_type_annotation_nodes(content: str) -> list[Node]:
+    """
+    Returns a list of nodes, representing type annotations from the given string.
+    """
     captures = run_query(content,
         """
         [
@@ -212,7 +214,11 @@ def delete_type_annotations(content: str) -> str:
         """)
     nodes = [c[0] for c in captures
              if not is_child_type_annotation(c[0])]
+    return nodes
 
+def delete_type_annotations(content: str) -> str:
+    """Deletes type annotations from the given string."""
+    nodes = extract_type_annotation_nodes(content)
     return delete_nodes(content, nodes)
 
 def is_child_of_export(start_node: Node) -> bool:
@@ -245,11 +251,31 @@ def delete_type_definitions(content: str) -> str:
     nodes = extract_type_definition_nodes(content)
     return delete_nodes(content, nodes)
 
-def get_name_from_type_definition(node: Node) -> str:
-    """Given a type definition node, return the name of the type."""
-    query = LANGUAGE.query("(type_identifier) @name")
+def get_type_name(node: Node) -> str:
+    """
+    Given a type annotation or definition node, return the name of the type.
+    """
+    query = LANGUAGE.query(
+        """
+        [
+          (predefined_type) @name
+          (type_identifier) @name
+        ]
+        """)
     captures = query.captures(node)
     return node_to_str(captures[0][0]).strip()
+
+def get_type_identifier_name(node: Node) -> Optional[str]:
+    """
+    Given a type annotation or definition node, return the name of type type
+    if it is a user-defined type. Otherwise, return None.
+    """
+    query = LANGUAGE.query("(type_identifier) @name")
+    captures = query.captures(node)
+    if captures:
+        return node_to_str(captures[0][0]).strip()
+    else:
+        return None
 
 def is_child_type_assertion(start_node: Node) -> bool:
     """Checks if any of the parent nodes is a type assertion node."""
@@ -301,3 +327,14 @@ def delete_comments(content: str) -> str:
 def is_empty(content: str) -> bool:
     """Returns true if the content contains only whitespace and comments."""
     return delete_comments(content).strip() == ""
+
+def get_undefined_type_names(content: str) -> list[str]:
+    """
+    Return a list of undefined type names, for the given string.
+    """
+    type_anns = {get_type_identifier_name(n)
+                 for n in extract_type_annotation_nodes(content)}
+    type_defs = {get_type_identifier_name(n)
+                 for n in extract_type_definition_nodes(content)}
+    result = [t for t in (type_anns - type_defs) if t]
+    return result

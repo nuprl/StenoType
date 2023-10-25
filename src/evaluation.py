@@ -100,6 +100,8 @@ def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
         print(f"Skipping {results_path} because it was already processed")
         return
 
+    # TODO: we give one example per worker, but could be more efficient
+    # (and complicated) to give one completion per worker
     dataset = dataset.map(
         partial(_evaluate_example, tokenizer=tokenizer),
         num_proc=args.workers,

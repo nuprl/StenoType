@@ -89,7 +89,7 @@ def main():
 
     # TODO: Right now we only have one evaluation dataset
     # maybe require all datasets to be on disk
-    # TODO: this loads the dataset even when we don't need it (e.g. for --evaluate)
+    # also, this loads the dataset even when we don't need it (e.g. for --evaluate)
     dataset = util.load_dataset("../datasets/stenotype-eval-dataset-subset")
 
     configs = [
@@ -135,12 +135,29 @@ def main():
             dataset,
             "stenotype-1b-1753dc0-ckpt1000",
             ExperimentType.APPROACH_3),
+
+        ExperimentConfig(
+            dataset,
+            "stenotype-1b-ef65cb9-ckpt250",
+            ExperimentType.APPROACH_4),
+        ExperimentConfig(
+            dataset,
+            "stenotype-1b-ef65cb9-ckpt500",
+            ExperimentType.APPROACH_4),
+        ExperimentConfig(
+            dataset,
+            "stenotype-1b-ef65cb9-ckpt750",
+            ExperimentType.APPROACH_4),
+        ExperimentConfig(
+            dataset,
+            "stenotype-1b-ef65cb9-ckpt1000",
+            ExperimentType.APPROACH_4),
     ]
 
     if args.show_configs:
         for i, c in enumerate(configs):
             print(i, c.model_name, c.approach)
-        exit(2)
+        exit(0)
 
     if args.infer is not None:
         # If indices given, then select only those configs

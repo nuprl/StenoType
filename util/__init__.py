@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from datasets import Dataset, IterableDataset
 from pathlib import Path
-from typing import Any, Generator, Optional, Type
+from typing import Any, Callable, Generator, Optional, Type
 import datasets
 import json
 import numpy as np
@@ -97,3 +97,17 @@ def timer():
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     print(f"Time: {hours}:{minutes:02}:{seconds:02}")
+
+def partition_list(
+    predicate: Callable[[Any], bool],
+    list: list
+) -> tuple[list, list]:
+    yes, no = [], []
+
+    for e in list:
+        if predicate(e):
+            yes.append(e)
+        else:
+            no.append(e)
+
+    return yes, no
