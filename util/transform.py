@@ -227,13 +227,21 @@ def is_child_of_export(start_node: Node) -> bool:
         return start_node.parent.type == "export_statement"
     return False
 
-def extract_type_definition_nodes(content: str) -> list[Node]:
+def extract_type_definition_nodes(
+    content: str,
+    include_classes: bool = False
+) -> list[Node]:
     """
     Returns a list of nodes, representing (non-class) type definitions from the
     given string.
     """
+    classes_query = """
+                      (class_declaration) @type
+                      (export_statement
+                          declaration: (class_declaration)) @type
+                    """ if include_classes else ""
     captures = run_query(content,
-        """
+        f"""
         [
             (interface_declaration) @type
             (type_alias_declaration) @type
@@ -241,6 +249,7 @@ def extract_type_definition_nodes(content: str) -> list[Node]:
                 declaration: (interface_declaration)) @type
             (export_statement
                 declaration: (type_alias_declaration)) @type
+            {classes_query}
         ]
         """)
     nodes = [c[0] for c in captures if not is_child_of_export(c[0])]
@@ -335,6 +344,7 @@ def get_undefined_type_names(content: str) -> list[str]:
     type_anns = {get_type_identifier_name(n)
                  for n in extract_type_annotation_nodes(content)}
     type_defs = {get_type_identifier_name(n)
-                 for n in extract_type_definition_nodes(content)}
+                 for n in extract_type_definition_nodes(content,
+                                                        include_classes=True)}
     result = [t for t in (type_anns - type_defs) if t]
     return result

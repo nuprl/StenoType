@@ -1,11 +1,8 @@
 from datasets import Dataset, IterableDataset
 from typing import Any, Callable
-from vllm.model_executor.parallel_utils.parallel_state import destroy_model_parallel
 import argparse
 import functools
-import gc
 import random
-import torch
 
 from model import Model, Tokenizer
 from util import transform
@@ -57,8 +54,7 @@ def approach4(model: Model, num_completions: int, original: str) -> list[str]:
          the instruction:
            "Add a type alias or interface for T"
     """
-    # TODO: test this on a small dataset
-    MAX_TRIES = 10
+    MAX_TRIES = 5
 
     # First generate num_completions completions to add type annotations
     prompt = (original, "Add type annotations")
@@ -218,7 +214,5 @@ def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
     print("Number of examples skipped:", num_removed)
 
     # Cleanup: destroy Model/vLLM so we can start the next experiment
-    destroy_model_parallel()
     del model
-    gc.collect()
-    torch.cuda.empty_cache()
+    util.empty_gpu()
