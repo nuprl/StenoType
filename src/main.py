@@ -123,7 +123,7 @@ def main():
 
     if args.show_configs:
         for i, c in enumerate(configs):
-            print(i, c.model_name, c.approach)
+            print(i, c.model_name, c.approach.__name__)
         exit(0)
 
     if args.infer is not None:
