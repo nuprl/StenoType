@@ -8,6 +8,7 @@ from model import Model, Tokenizer
 from util import transform
 import util
 
+
 def approach1(model: Model, num_completions: int, original: str) -> list[str]:
     """
     One-shot: use the instruction "Add type annotations and interfaces".
@@ -15,6 +16,7 @@ def approach1(model: Model, num_completions: int, original: str) -> list[str]:
     prompt = (original, "Add type annotations and interfaces")
     prompts = [prompt] * num_completions
     return model.edit_batch(prompts)
+
 
 def approach2(model: Model, num_completions: int, original: str) -> list[str]:
     """
@@ -30,6 +32,7 @@ def approach2(model: Model, num_completions: int, original: str) -> list[str]:
     prompts = [(o, "Add type annotations") for o in outputs]
     return model.edit_batch(prompts)
 
+
 def approach3(model: Model, num_completions: int, original: str) -> list[str]:
     """
     Two steps: generate num_completions completions for the first instruction,
@@ -43,6 +46,7 @@ def approach3(model: Model, num_completions: int, original: str) -> list[str]:
     outputs = model.edit_batch(prompts)
     prompts = [(o, "Add type aliases and interfaces") for o in outputs]
     return model.edit_batch(prompts)
+
 
 def approach4(model: Model, num_completions: int, original: str) -> list[str]:
     """
@@ -66,8 +70,9 @@ def approach4(model: Model, num_completions: int, original: str) -> list[str]:
     counter = 1
     while True:
         # Get list of undefined types for each output
-        outputs_and_undef = [(o, transform.get_undefined_type_names(o))
-                             for o in outputs]
+        outputs_and_undef = [
+            (o, transform.get_undefined_type_names(o)) for o in outputs
+        ]
 
         # Partition the outputs on whether they have undefined types
         done, todo = util.partition_list(lambda p: not p[1], outputs_and_undef)
@@ -81,24 +86,27 @@ def approach4(model: Model, num_completions: int, original: str) -> list[str]:
 
         # For each completion in todo, pick one of the undefined types
         # and construct a prompt
-        prompts = [(code,
-                    f"Add a type alias or interface for {random.choice(types)}")
-                   for code, types in todo]
+        prompts = [
+            (code, f"Add a type alias or interface for {random.choice(types)}")
+            for code, types in todo
+        ]
         outputs = model.edit_batch(prompts)
         counter += 1
 
     return final_outputs
+
 
 class ExperimentConfig:
     def __init__(
         self,
         dataset: Dataset | IterableDataset,
         model_name: str,
-        approach: Callable[[Model, int, str], list[str]]
+        approach: Callable[[Model, int, str], list[str]],
     ):
         self.dataset = dataset
         self.model_name = model_name
         self.approach = approach
+
 
 def _add_column_without_types(example: dict[str, Any]) -> dict[str, Any]:
     # Delete type annotations and definitions
@@ -107,24 +115,20 @@ def _add_column_without_types(example: dict[str, Any]) -> dict[str, Any]:
     example["content_without_types"] = stripped
     return example
 
+
 def _prepare_dataset(
-    dataset: Dataset | IterableDataset,
-    model: Model,
-    tokenizer: Tokenizer,
-    workers: int
+    dataset: Dataset | IterableDataset, model: Model, tokenizer: Tokenizer, workers: int
 ) -> Dataset | IterableDataset:
     # Remove type annotations and definitions, add as new column
     dataset = dataset.map(
-        _add_column_without_types,
-        num_proc=workers,
-        desc="Removing types"
+        _add_column_without_types, num_proc=workers, desc="Removing types"
     )
 
     # Remove empty rows (since removing types may end up removing everything)
     dataset = dataset.filter(
         lambda e: not transform.is_empty(e["content_without_types"]),
         num_proc=workers,
-        desc="Removing empty examples"
+        desc="Removing empty examples",
     )
 
     # Remove examples that are too long
@@ -132,16 +136,17 @@ def _prepare_dataset(
     dataset = dataset.filter(
         lambda e: len(tokenizer(e["content_without_types"])) < input_size,
         num_proc=workers,
-        desc="Removing large examples"
+        desc="Removing large examples",
     )
 
     return dataset
+
 
 def _infer_on_example(
     example: dict[str, Any],
     model: Model,
     approach: Callable[[Model, int, str], list[str]],
-    num_completions: int
+    num_completions: int,
 ) -> dict[str, Any]:
     # For now, we're assuming TypeScript with type annotations and definitions removed.
     stripped = example["content_without_types"]
@@ -154,13 +159,14 @@ def _infer_on_example(
 
     return example
 
+
 def _run_inference(
     dataset: Dataset | IterableDataset,
     model: Model,
     tokenizer: Tokenizer,
     approach: Callable[[Model, int, str], list[str]],
     num_completions: int,
-    workers: int
+    workers: int,
 ) -> Dataset | IterableDataset:
     dataset = _prepare_dataset(dataset, model, tokenizer, workers)
 
@@ -170,21 +176,24 @@ def _run_inference(
                 _infer_on_example,
                 model=model,
                 approach=approach,
-                num_completions=num_completions
+                num_completions=num_completions,
             ),
-            desc="Inferring types"
+            desc="Inferring types",
         )
 
-    dataset = dataset.select_columns([
-        "hexsha",
-        "max_stars_repo_path",
-        "max_stars_repo_name",
-        "content",
-        "content_without_types",
-        "results",
-    ])
+    dataset = dataset.select_columns(
+        [
+            "hexsha",
+            "max_stars_repo_path",
+            "max_stars_repo_name",
+            "content",
+            "content_without_types",
+            "results",
+        ]
+    )
 
     return dataset
+
 
 def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
     # For now, the output name is {model_name}.parquet. Later we might have
@@ -198,12 +207,7 @@ def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
 
     num_examples = len(dataset)
     dataset = _run_inference(
-        dataset,
-        model,
-        tokenizer,
-        config.approach,
-        args.num_completions,
-        args.workers
+        dataset, model, tokenizer, config.approach, args.num_completions, args.workers
     )
     num_removed = num_examples - len(dataset)
 

@@ -10,11 +10,13 @@ from util import transform
 # Mentioning "TypeScript" doesn't seem to work.
 DEFAULT_INSTRUCTION = "Add type annotations and interfaces"
 
+
 class TypeInference:
     """
     Performs type inference by predicting type annotations, and optionally
     generating type definitions.
     """
+
     def __init__(self, model: Model, instruction: str = DEFAULT_INSTRUCTION):
         self.model = model
         self.instruction = instruction
@@ -31,10 +33,12 @@ class TypeInference:
         Returns None if there is no valid type annotation.
         """
         template = f"let x: {generated}"
-        captures = transform.run_query(template,
+        captures = transform.run_query(
+            template,
             """
             (variable_declarator type: (type_annotation (_) @ann))
-            """)
+            """,
+        )
         return transform.node_to_str(captures[0][0]) if captures else None
 
     def _generate_type(self, prefix: str, suffix: str, retries: int = 3) -> str:
@@ -67,12 +71,11 @@ class TypeInference:
             return "".join(chunks)
 
         infilled_prefix = chunks[0]
-        for index, chunk in tqdm(enumerate(chunks[1:]),
-                                 desc="Infilling",
-                                 total=len(chunks)-1,
-                                 leave=False):
+        for index, chunk in tqdm(
+            enumerate(chunks[1:]), desc="Infilling", total=len(chunks) - 1, leave=False
+        ):
             infilled_prefix += ": "
-            suffix = "".join(chunks[index + 1:])
+            suffix = "".join(chunks[index + 1 :])
 
             clipped_prefix, clipped_suffix = transform.clip_text(
                 infilled_prefix, suffix, self.model.max_context_length

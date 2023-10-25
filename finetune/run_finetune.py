@@ -1,11 +1,6 @@
 from datasets import Dataset, IterableDataset
 from pathlib import Path
-from transformers import (
-    AutoTokenizer,
-    TrainingArguments,
-    logging,
-    set_seed
-)
+from transformers import AutoTokenizer, TrainingArguments, logging, set_seed
 import argparse
 import os
 
@@ -27,8 +22,9 @@ whether it is loaded from the Hugging Face Hub, loaded from disk, or requires
 additional processing, e.g. interleaving and filtering multiple datasets.
 """
 
-MODEL_PATH = str(Path(Path(__file__).parent,
-                      "..", "..", "models", "starcoderbase-1b").resolve())
+MODEL_PATH = str(
+    Path(Path(__file__).parent, "..", "..", "models", "starcoderbase-1b").resolve()
+)
 
 # We are using a very large dataset, so it's not feasible to download the whole
 # thing. Instead, we stream the dataset and use an estimate for the number of
@@ -43,7 +39,7 @@ TOTAL_TOKENS = 7_100_000_000 * 2
 ########## StarCoder-1B on an A100/H100
 # We pack the tokens into a ConstantLengthDataset,
 # where each example has SEQUENCE_LENGTH tokens
-SEQUENCE_LENGTH = 8*1024
+SEQUENCE_LENGTH = 8 * 1024
 EPOCHS = 1
 BATCH_SIZE = 2
 GRADIENT_ACCUMULATION_STEPS = 4
@@ -79,17 +75,17 @@ TRAINING_ARGS = TrainingArguments(
     lr_scheduler_type="cosine",
     warmup_steps=100,
     logging_steps=1,
-    save_steps=250, # save_steps must be a multiple of eval_steps
+    save_steps=250,  # save_steps must be a multiple of eval_steps
     bf16=True,
     fp16=False,
     local_rank=0,
     dataloader_drop_last=True,
-    eval_steps=50, # save_steps must be a multiple of eval_steps
+    eval_steps=50,  # save_steps must be a multiple of eval_steps
     run_name="StarCoder-finetuned",
     optim="adamw_torch",
     report_to="wandb",
     ddp_find_unused_parameters=False,
-    resume_from_checkpoint=False, # only set to True if there is an existing checkpoint!
+    resume_from_checkpoint=False,  # only set to True if there is an existing checkpoint!
     gradient_checkpointing=True,
 )
 
@@ -101,15 +97,16 @@ DATASET_CONFIG = DatasetConfig(
     seq_length=SEQUENCE_LENGTH,
 )
 
-def get_dataset(
-    num_workers: int
-) -> Dataset | IterableDataset:
+
+def get_dataset(num_workers: int) -> Dataset | IterableDataset:
     dataset = util.load_dataset("../../datasets/ts-training-get4")
     return dataset.to_iterable_dataset(num_shards=100)
+
 
 """
 Edits should not be required after this point.
 """
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -125,17 +122,10 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 
     train_dataset, eval_dataset = finetune.create_datasets(
-        dataset,
-        tokenizer,
-        DATASET_CONFIG,
-        args.seed
+        dataset, tokenizer, DATASET_CONFIG, args.seed
     )
-    finetune.run_training(
-        MODEL_PATH,
-        TRAINING_ARGS,
-        train_dataset,
-        eval_dataset
-    )
+    finetune.run_training(MODEL_PATH, TRAINING_ARGS, train_dataset, eval_dataset)
+
 
 if __name__ == "__main__":
     main()

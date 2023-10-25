@@ -17,27 +17,25 @@ import util
 
 ACCURACY_METRIC = evaluate.load("accuracy")
 
-def _accuracy(
-    tokenizer: PreTrainedTokenizer,
-    original: str,
-    output: str
-) -> float:
+
+def _accuracy(tokenizer: PreTrainedTokenizer, original: str, output: str) -> float:
     # Tokenize the original and output, and pad them to the same length
     # NumPy tensors may be more memory efficient than Python lists
     original_tokens, output_tokens = tokenizer(
         [original, output],
         padding=True,
         return_attention_mask=False,
-        return_tensors="np"
+        return_tensors="np",
     )["input_ids"]
 
     return ACCURACY_METRIC.compute(
-        references=original_tokens,
-        predictions=output_tokens
+        references=original_tokens, predictions=output_tokens
     )["accuracy"]
+
 
 def _levenshtein(original: str, output: str) -> float:
     return Levenshtein.ratio(original, output)
+
 
 def _typescript(contents: str) -> Optional[tuple[int, int]]:
     args = ["node", str(Path(ROOT_DIR, "ts", "main.js").resolve())]
@@ -51,10 +49,9 @@ def _typescript(contents: str) -> Optional[tuple[int, int]]:
 
     return None
 
+
 def _evaluate_one_completion(
-    completion: dict[str, Any],
-    tokenizer: Tokenizer,
-    original: str
+    completion: dict[str, Any], tokenizer: Tokenizer, original: str
 ) -> dict[str, Any]:
     if completion["error"]:
         return completion
@@ -76,15 +73,17 @@ def _evaluate_one_completion(
 
     return completion
 
+
 def _evaluate_example(
-    example: dict[str, Any],
-    tokenizer: PreTrainedTokenizer
+    example: dict[str, Any], tokenizer: PreTrainedTokenizer
 ) -> dict[str, Any]:
     original = example["content"]
     completions = example["results"]
-    example["results"] = [_evaluate_one_completion(c, tokenizer, original)
-                          for c in completions]
+    example["results"] = [
+        _evaluate_one_completion(c, tokenizer, original) for c in completions
+    ]
     return example
+
 
 def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
     # For now, the output name is {model_name}.parquet. Later we might have
@@ -105,11 +104,12 @@ def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
     dataset = dataset.map(
         partial(_evaluate_example, tokenizer=tokenizer),
         num_proc=args.workers,
-        desc="Evaluating results"
+        desc="Evaluating results",
     )
 
     # Save dataset
     util.save_dataset(dataset, results_path, args.workers)
+
 
 def _pass_at_k(n: int, c: int, k: int) -> float:
     """
@@ -125,6 +125,7 @@ def _pass_at_k(n: int, c: int, k: int) -> float:
     if n - c < k:
         return 1.0
     return 1.0 - np.prod(1.0 - k / np.arange(n - c + 1, n + 1))
+
 
 def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
     results = example["results"]
@@ -149,31 +150,26 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
 
     return example
 
+
 def _remove_errors(example: dict[str, Any]) -> dict[str, Any]:
     example["results"] = [r for r in example["results"] if not r["error"]]
     return example
 
+
 def _summarize_dataset(
-    config: ExperimentConfig,
-    args: argparse.Namespace
+    config: ExperimentConfig, args: argparse.Namespace
 ) -> dict[str, Any]:
     results_path = util.get_results_name(config.model_name, args.results_directory)
     dataset = util.load_dataset(results_path)
 
     # Filter out results with errors
     all_completions = len([r for d in dataset for r in d["results"]])
-    dataset = dataset.map(
-        _remove_errors,
-        num_proc=args.workers,
-        desc="Removing errors"
-    )
+    dataset = dataset.map(_remove_errors, num_proc=args.workers, desc="Removing errors")
     no_errors = len([r for d in dataset for r in d["results"]])
 
     # Summarize each example
     dataset = dataset.map(
-        _summarize_example,
-        num_proc=args.workers,
-        desc="Summarizing results"
+        _summarize_example, num_proc=args.workers, desc="Summarizing results"
     )
     util.save_dataset(dataset, results_path, args.workers)
 
@@ -183,14 +179,12 @@ def _summarize_dataset(
     total_type_checks = np.sum(dataset["num_type_checks"])
     pct_errors = total_errors / total_completions
     pct_type_checks = total_type_checks / total_completions
-    avg_accuracy = np.mean([r["accuracy"]
-                            for d in dataset for r in d["results"]])
-    avg_levenshtein = np.mean([r["levenshtein"]
-                               for d in dataset for r in d["results"]])
-    avg_type_errors = np.mean([r["type_errors"]
-                               for d in dataset for r in d["results"]])
-    avg_parse_errors = np.mean([r["parse_errors"]
-                                for d in dataset for r in d["results"]])
+    avg_accuracy = np.mean([r["accuracy"] for d in dataset for r in d["results"]])
+    avg_levenshtein = np.mean([r["levenshtein"] for d in dataset for r in d["results"]])
+    avg_type_errors = np.mean([r["type_errors"] for d in dataset for r in d["results"]])
+    avg_parse_errors = np.mean(
+        [r["parse_errors"] for d in dataset for r in d["results"]]
+    )
     pass_1 = np.mean(dataset["pass@1"])
 
     return {
@@ -208,6 +202,7 @@ def _summarize_dataset(
         "pass@1": pass_1,
     }
 
+
 def summarize_results(configs: list[ExperimentConfig], args: argparse.Namespace):
     summaries = []
     for config in configs:
@@ -219,10 +214,11 @@ def summarize_results(configs: list[ExperimentConfig], args: argparse.Namespace)
         print(f"===Stats for model {config.model_name}===")
         print(f"Number of problems: {summary['num_problems']}")
         print(f"Total completions: {summary['total_completions']}")
-        print(f"Errors: {summary['total_errors']} "
-              f"({summary['pct_errors']:.1%})")
-        print(f"Type checks: {summary['total_type_checks']} "
-              f"({summary['pct_type_checks']:.1%})")
+        print(f"Errors: {summary['total_errors']} " f"({summary['pct_errors']:.1%})")
+        print(
+            f"Type checks: {summary['total_type_checks']} "
+            f"({summary['pct_type_checks']:.1%})"
+        )
         print(f"Accuracy: {summary['avg_accuracy']:.1%}")
         print(f"Levenshtein: {summary['avg_levenshtein']:.1%}")
         print(f"Type errors: {summary['avg_type_errors']:.1f}")

@@ -7,12 +7,15 @@ from transformers import (
     AutoModelForCausalLM,
     PreTrainedTokenizer,
     Trainer,
-    TrainingArguments)
+    TrainingArguments,
+)
 from typing import Optional
 import torch
 
+
 def default_get_content(element: dict) -> Optional[str]:
     return element["content"]
+
 
 @dataclass
 class DatasetConfig:
@@ -30,11 +33,13 @@ class DatasetConfig:
             seq_length (`int`): Length of token sequences to use for the
                 `ConstantLengthDataset`. Defaults to `2048`.
     """
+
     get_content: Callable[[dict], Optional[str]] = default_get_content
     streaming: bool = False
     size_valid_set: int = 10_000
     shuffle_buffer: int = 1000
     seq_length: int = 2048
+
 
 def print_trainable_parameters(model) -> None:
     """
@@ -45,6 +50,7 @@ def print_trainable_parameters(model) -> None:
         if param.requires_grad:
             trainable_params += param.numel()
     print(f"trainable params: {trainable_params}")
+
 
 class ConstantLengthDataset(TorchIterableDataset):
     """
@@ -57,6 +63,7 @@ class ConstantLengthDataset(TorchIterableDataset):
                 extracts text from a dataset element, to be used for training.
             infinite (bool): If True the iterator is reset after dataset reaches end.
     """
+
     def __init__(
         self,
         tokenizer: PreTrainedTokenizer,
@@ -76,7 +83,7 @@ class ConstantLengthDataset(TorchIterableDataset):
         return {
             "input_ids": input_ids,
             "labels": input_ids,
-            "attention_mask": attention_mask
+            "attention_mask": attention_mask,
         }
 
     def _pad(self, buffer: list):
@@ -85,21 +92,23 @@ class ConstantLengthDataset(TorchIterableDataset):
         self.concat_token_id and create an attention mask that indicates the
         padded tokens.
         """
-        assert (len(buffer) > 0 and len(buffer) < self.seq_length)
+        assert len(buffer) > 0 and len(buffer) < self.seq_length
 
         pad_size = self.seq_length - len(buffer)
-        padded_input_ids = torch.cat([
-            torch.LongTensor(buffer),
-            torch.full(
-                size=(pad_size,),
-                fill_value=self.concat_token_id,
-                dtype=torch.long
-            )
-        ])
-        attention_mask = torch.cat([
-            torch.ones(len(buffer), dtype=torch.long),
-            torch.zeros(pad_size, dtype=torch.long)
-        ])
+        padded_input_ids = torch.cat(
+            [
+                torch.LongTensor(buffer),
+                torch.full(
+                    size=(pad_size,), fill_value=self.concat_token_id, dtype=torch.long
+                ),
+            ]
+        )
+        attention_mask = torch.cat(
+            [
+                torch.ones(len(buffer), dtype=torch.long),
+                torch.zeros(pad_size, dtype=torch.long),
+            ]
+        )
 
         yield self._return_tensor(padded_input_ids, attention_mask)
 
@@ -122,18 +131,17 @@ class ConstantLengthDataset(TorchIterableDataset):
                 if not content:
                     continue
 
-                tokens = self.tokenizer(
-                    content,
-                    return_attention_mask=False
-                )["input_ids"]
+                tokens = self.tokenizer(content, return_attention_mask=False)[
+                    "input_ids"
+                ]
                 buffer.extend(tokens + [self.concat_token_id])
 
                 # If buffer exceeds max size, yield sequences of length
                 # self.seq_length from the buffer, then delete those tokens
                 # from the buffer
                 while len(buffer) >= self.seq_length:
-                    input_ids = torch.LongTensor(buffer[:self.seq_length])
-                    del buffer[:self.seq_length]
+                    input_ids = torch.LongTensor(buffer[: self.seq_length])
+                    del buffer[: self.seq_length]
                     yield self._return_tensor(input_ids, max_attention_mask)
 
             if not self.infinite:
@@ -141,11 +149,12 @@ class ConstantLengthDataset(TorchIterableDataset):
                     yield from self._pad(buffer)
                 break
 
+
 def create_datasets(
     dataset: Dataset | IterableDataset,
     tokenizer: PreTrainedTokenizer,
     config: DatasetConfig,
-    seed: int
+    seed: int,
 ) -> tuple[ConstantLengthDataset, ConstantLengthDataset]:
     """
     Given a dataset, create the train/valid splits and transform into
@@ -156,10 +165,7 @@ def create_datasets(
         dataset = dataset.shuffle(buffer_size=config.shuffle_buffer, seed=seed)
         valid_data = dataset.take(config.size_valid_set)
         train_data = dataset.skip(config.size_valid_set)
-        train_data = train_data.shuffle(
-            buffer_size=config.shuffle_buffer,
-            seed=seed
-        )
+        train_data = train_data.shuffle(buffer_size=config.shuffle_buffer, seed=seed)
     else:
         train_data = dataset["train"]
         valid_data = dataset["test"]
@@ -183,6 +189,7 @@ def create_datasets(
         infinite=False,
     )
     return train_dataset, valid_dataset
+
 
 def run_training(
     model_path: str,

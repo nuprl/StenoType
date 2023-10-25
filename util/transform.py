@@ -13,19 +13,23 @@ LANGUAGE = Language(LANGUAGES_SO, "typescript")
 PARSER = Parser()
 PARSER.set_language(LANGUAGE)
 
+
 def parse(s: str) -> Tree:
     """Parses the given string into a tree."""
     return PARSER.parse(s.encode("utf-8"))
+
 
 def is_valid_syntax(s: str) -> bool:
     """Returns true if the given string is syntactically valid TypeScript."""
     root = parse(s).root_node
     return not root.has_error
 
+
 def node_to_str(node: Node) -> str:
     """Returns the string represented by the given tree node."""
     # utf-8-sig skips the BOM (if it exists) when decoding
     return node.text.decode("utf-8-sig")
+
 
 def run_query(content: str, query_str: str) -> list[tuple[Node, str]]:
     """
@@ -37,6 +41,7 @@ def run_query(content: str, query_str: str) -> list[tuple[Node, str]]:
     query = LANGUAGE.query(query_str)
     return query.captures(tree.root_node)
 
+
 def parenthesize_arrow_params(content: str) -> str:
     """
     Ensures arrow functions have their parameters wrapped with parentheses.
@@ -46,12 +51,14 @@ def parenthesize_arrow_params(content: str) -> str:
 
     Example:  x => x      becomes      (x) => x
     """
-    captures = run_query(content,
+    captures = run_query(
+        content,
         """
         (arrow_function
             parameter: (identifier) @param
             body: (_))
-        """)
+        """,
+    )
     pairs = [(c[0].start_byte, c[0].end_byte) for c in captures]
 
     # Given pairs of start and end bytes for the unparenthesized parameters,
@@ -63,6 +70,7 @@ def parenthesize_arrow_params(content: str) -> str:
         content_bytes[s:s] = bytearray("(".encode("utf-8"))
 
     return content_bytes.decode("utf-8-sig")
+
 
 def split_at_annotation_locations(content: str) -> list[str]:
     """
@@ -76,7 +84,8 @@ def split_at_annotation_locations(content: str) -> list[str]:
         - public field definitions    class { x: TYPE }
         - variable declarators        let x: TYPE
     """
-    captures = run_query(content,
+    captures = run_query(
+        content,
         """
         [
             (required_parameter
@@ -89,7 +98,8 @@ def split_at_annotation_locations(content: str) -> list[str]:
             (variable_declarator
                 name: (_) @ann)
         ]
-        """)
+        """,
+    )
 
     # Need to operate on byte string, not characters
     content_bytes = content.encode("utf-8")
@@ -111,6 +121,7 @@ def split_at_annotation_locations(content: str) -> list[str]:
 
     return chunks
 
+
 def slice_input(content: str, slice_length: int) -> list[str]:
     """
     Splits the input into slices of at most slice_length, breaking at newlines
@@ -128,6 +139,7 @@ def slice_input(content: str, slice_length: int) -> list[str]:
     slices.append(curr_slice)
     return slices
 
+
 def prefix_ending_with_newline(s: str, max_length: int) -> str:
     """
     Produces a prefix of s that is at most max_length, but does not split a
@@ -135,12 +147,14 @@ def prefix_ending_with_newline(s: str, max_length: int) -> str:
     """
     return s[:max_length].rsplit("\n", 1)[0]
 
+
 def suffix_starting_with_newline(s: str, max_length: int) -> str:
     """
     Produces a suffix of s that is at most max_length, but does not split a
     line.
     """
     return s[-max_length:].split("\n", 1)[-1]
+
 
 def clip_text(s1: str, s2: str, max_length: int) -> tuple[str, str]:
     """
@@ -159,6 +173,7 @@ def clip_text(s1: str, s2: str, max_length: int) -> tuple[str, str]:
         s2 = prefix_ending_with_newline(s2, max_length // 2)
     return s1, s2
 
+
 def delete_between_indices(content: str, indices: list[Optional[int]]) -> str:
     """Helper for deleting text between indices of a string."""
     # Need to operate on byte string, not characters
@@ -173,6 +188,7 @@ def delete_between_indices(content: str, indices: list[Optional[int]]) -> str:
     new_content = "".join(chunks)
 
     return new_content
+
 
 def delete_nodes(content: str, nodes: list[Node]) -> str:
     """
@@ -189,37 +205,44 @@ def delete_nodes(content: str, nodes: list[Node]) -> str:
 
     return delete_between_indices(content, indices)
 
+
 def is_child_type_annotation(start_node: Node) -> bool:
     """Checks if any of the parent nodes is an annotation node."""
     node = start_node.parent
     while node is not None:
-        if (node.type == "type_annotation" or
-                node.type == "opting_type_annotation" or
-                node.type == "omitting_type_annotation"):
+        if (
+            node.type == "type_annotation"
+            or node.type == "opting_type_annotation"
+            or node.type == "omitting_type_annotation"
+        ):
             return True
         node = node.parent
     return False
+
 
 def extract_type_annotation_nodes(content: str) -> list[Node]:
     """
     Returns a list of nodes, representing type annotations from the given string.
     """
-    captures = run_query(content,
+    captures = run_query(
+        content,
         """
         [
             (type_annotation) @annotation
             (opting_type_annotation) @annotation
             (omitting_type_annotation) @annotation
         ]
-        """)
-    nodes = [c[0] for c in captures
-             if not is_child_type_annotation(c[0])]
+        """,
+    )
+    nodes = [c[0] for c in captures if not is_child_type_annotation(c[0])]
     return nodes
+
 
 def delete_type_annotations(content: str) -> str:
     """Deletes type annotations from the given string."""
     nodes = extract_type_annotation_nodes(content)
     return delete_nodes(content, nodes)
+
 
 def is_child_of_export(start_node: Node) -> bool:
     """Checks if the parent node is an export statement."""
@@ -227,20 +250,25 @@ def is_child_of_export(start_node: Node) -> bool:
         return start_node.parent.type == "export_statement"
     return False
 
+
 def extract_type_definition_nodes(
-    content: str,
-    include_classes: bool = False
+    content: str, include_classes: bool = False
 ) -> list[Node]:
     """
     Returns a list of nodes, representing (non-class) type definitions from the
     given string.
     """
-    classes_query = """
+    classes_query = (
+        """
                       (class_declaration) @type
                       (export_statement
                           declaration: (class_declaration)) @type
-                    """ if include_classes else ""
-    captures = run_query(content,
+                    """
+        if include_classes
+        else ""
+    )
+    captures = run_query(
+        content,
         f"""
         [
             (interface_declaration) @type
@@ -251,14 +279,17 @@ def extract_type_definition_nodes(
                 declaration: (type_alias_declaration)) @type
             {classes_query}
         ]
-        """)
+        """,
+    )
     nodes = [c[0] for c in captures if not is_child_of_export(c[0])]
     return nodes
+
 
 def delete_type_definitions(content: str) -> str:
     """Deletes (non-class) type definitions from the given string."""
     nodes = extract_type_definition_nodes(content)
     return delete_nodes(content, nodes)
+
 
 def get_type_name(node: Node) -> str:
     """
@@ -270,9 +301,11 @@ def get_type_name(node: Node) -> str:
           (predefined_type) @name
           (type_identifier) @name
         ]
-        """)
+        """
+    )
     captures = query.captures(node)
     return node_to_str(captures[0][0]).strip()
+
 
 def get_type_identifier_name(node: Node) -> Optional[str]:
     """
@@ -286,6 +319,7 @@ def get_type_identifier_name(node: Node) -> Optional[str]:
     else:
         return None
 
+
 def is_child_type_assertion(start_node: Node) -> bool:
     """Checks if any of the parent nodes is a type assertion node."""
     node = start_node.parent
@@ -294,6 +328,7 @@ def is_child_type_assertion(start_node: Node) -> bool:
             return True
         node = node.parent
     return False
+
 
 def delete_type_assertions(content: str) -> str:
     """Recursively deletes type assertions from the given string."""
@@ -320,6 +355,7 @@ def delete_type_assertions(content: str) -> str:
     # Recursive call to handle nested type assertion expressions
     return delete_type_assertions(content)
 
+
 def delete_types(content: str) -> str:
     """Deletes type annotations and type definitions from the given string."""
     content = delete_type_definitions(content)
@@ -327,24 +363,29 @@ def delete_types(content: str) -> str:
     content = delete_type_assertions(content)
     return content
 
+
 def delete_comments(content: str) -> str:
     """Deletes comments from the given string."""
     captures = run_query(content, "(comment) @comment")
     nodes = [c[0] for c in captures]
     return delete_nodes(content, nodes)
 
+
 def is_empty(content: str) -> bool:
     """Returns true if the content contains only whitespace and comments."""
     return delete_comments(content).strip() == ""
+
 
 def get_undefined_type_names(content: str) -> list[str]:
     """
     Return a list of undefined type names, for the given string.
     """
-    type_anns = {get_type_identifier_name(n)
-                 for n in extract_type_annotation_nodes(content)}
-    type_defs = {get_type_identifier_name(n)
-                 for n in extract_type_definition_nodes(content,
-                                                        include_classes=True)}
+    type_anns = {
+        get_type_identifier_name(n) for n in extract_type_annotation_nodes(content)
+    }
+    type_defs = {
+        get_type_identifier_name(n)
+        for n in extract_type_definition_nodes(content, include_classes=True)
+    }
     result = [t for t in (type_anns - type_defs) if t]
     return result

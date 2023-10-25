@@ -12,27 +12,31 @@ COMMIT_MSG = "<commit_msg>"
 COMMIT_AFTER = "<commit_after>"
 ENDOFTEXT = "<|endoftext|>"
 
+
 class Tokenizer:
     """
     Wrapper for an AutoTokenizer, because we need to add a special "[PAD]" token.
     For convenience, this class can be called to tokenize a string.
     """
+
     def __init__(self, tokenizer_path: str):
         self.tokenizer = AutoTokenizer.from_pretrained(Path(tokenizer_path).resolve())
-        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        self.tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
     def __call__(self, content: str):
         # Assuming NumPy tensors consume less memory
-        return self.tokenizer(content,
-                              return_attention_mask=False,
-                              return_tensors="np")["input_ids"][0]
+        return self.tokenizer(
+            content, return_attention_mask=False, return_tensors="np"
+        )["input_ids"][0]
+
 
 class Model:
     """
     This class wraps vLLM and provides methods for completion, infilling, and
     editing (via the StarCoder git commit format).
     """
-    CONTEXT_SIZE = 8 * 1024 # 8K tokens
+
+    CONTEXT_SIZE = 8 * 1024  # 8K tokens
     TYPE_PROPORTION = 0.25  # Assume input expands by 25% (added types) to get output
 
     # Input + Output = Context; Output = (1 + Proportion) * Input
@@ -49,7 +53,7 @@ class Model:
         max_fim_tokens: int = 50,
         temperature: float = 0.2,
         top_p: float = 0.95,
-        max_context_length: int = 500
+        max_context_length: int = 500,
     ):
         self.max_tokens = max_tokens
         self.max_fim_tokens = max_fim_tokens
@@ -89,8 +93,9 @@ class Model:
         return [o.outputs[0].text for o in outputs]
 
     def infill_batch(self, pairs: list[tuple[str, str]]) -> list[str]:
-        prompts = [f"{FIM_PREFIX}{pre}{FIM_SUFFIX}{suf}{FIM_MIDDLE}"
-                   for pre, suf in pairs]
+        prompts = [
+            f"{FIM_PREFIX}{pre}{FIM_SUFFIX}{suf}{FIM_MIDDLE}" for pre, suf in pairs
+        ]
         return self._generate(prompts, max_tokens=self.max_fim_tokens)
 
     def infill(self, prefix: str, suffix: str) -> str:
@@ -99,10 +104,12 @@ class Model:
 
     def edit_batch(self, triples: list[tuple[str, str]] | list[tuple[str, str, str]]):
         # prefix may be missing, so we unpack as a list and treat it as an empty string
-        prompts = [f"{COMMIT_BEFORE}{code}"
-                   f"{COMMIT_MSG}{instruction}"
-                   f"{COMMIT_AFTER}{''.join(prefix)}"
-                   for code, instruction, *prefix in triples]
+        prompts = [
+            f"{COMMIT_BEFORE}{code}"
+            f"{COMMIT_MSG}{instruction}"
+            f"{COMMIT_AFTER}{''.join(prefix)}"
+            for code, instruction, *prefix in triples
+        ]
         return self._generate(prompts)
 
     def edit(self, code: str, instruction: str, prefix: str = "") -> str:
@@ -110,13 +117,12 @@ class Model:
         return self._generate([prompt])[0]
 
     def complete_batch(
-        self,
-        prompts: list[str],
-        stop: Optional[list[str]] = None
+        self, prompts: list[str], stop: Optional[list[str]] = None
     ) -> list[str]:
         completions = self._generate(prompts, stop=stop)
-        return [f"{prompt}{completion}"
-                for prompt, completion in zip(prompts, completions)]
+        return [
+            f"{prompt}{completion}" for prompt, completion in zip(prompts, completions)
+        ]
 
     def complete(self, prompt: str, stop: Optional[list[str]] = None) -> str:
         completion = self._generate([prompt], stop=stop)[0]

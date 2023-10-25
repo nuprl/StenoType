@@ -14,16 +14,18 @@ import torch
 
 ROOT_DIR = Path(Path(__file__).parent).parent
 
+
 def cpu_count() -> int:
     # os.cpu_count() is the number of CPUs on the system,
     # not the number available to the current process
     return len(os.sched_getaffinity(0))
 
+
 def load_dataset(
     dataset: str,
     split: Optional[str] = None,
     revision: Optional[str] = None,
-    num_proc: Optional[int] = None
+    num_proc: Optional[int] = None,
 ) -> Dataset | IterableDataset:
     """
     Load a dataset. Tries to interpret dataset as a path and loads a local file
@@ -41,17 +43,11 @@ def load_dataset(
     else:
         print(f"Loading dataset {dataset} from the Hugging Face Hub...", flush=True)
         return datasets.load_dataset(
-            dataset,
-            split=split,
-            revision=revision,
-            num_proc=num_proc
+            dataset, split=split, revision=revision, num_proc=num_proc
         )
 
-def save_dataset(
-    dataset: Dataset | IterableDataset,
-    output: str,
-    workers: int
-):
+
+def save_dataset(dataset: Dataset | IterableDataset, output: str, workers: int):
     print(f"Saving results to {output}")
     if output.endswith(".parquet"):
         dataset.to_parquet(output)
@@ -59,6 +55,7 @@ def save_dataset(
         dataset.to_json(output)
     else:
         dataset.save_to_disk(output, num_proc=workers)
+
 
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -70,25 +67,30 @@ class NpEncoder(json.JSONEncoder):
             return obj.tolist()
         return super(NpEncoder, self).default(obj)
 
+
 def read_jsonl(path: Path | str) -> Generator[dict, None, None]:
     with open(path) as f:
         for line in f:
             yield json.loads(line)
 
+
 def write_jsonl(
-        path: Path | str,
-        data: Iterable[Any],
-        encoder: Optional[Type[json.JSONEncoder]] = None
+    path: Path | str,
+    data: Iterable[Any],
+    encoder: Optional[Type[json.JSONEncoder]] = None,
 ):
     with open(path, "w") as f:
         for item in data:
             f.write(json.dumps(item, cls=encoder) + "\n")
 
+
 def get_results_name(model_name: str, results_directory: str) -> str:
     return str(Path(results_directory, model_name).with_suffix(".parquet"))
 
+
 def get_model_path(model_name: str, models_directory: str) -> str:
     return str(Path(models_directory, model_name))
+
 
 @contextmanager
 def timer():
@@ -101,10 +103,8 @@ def timer():
     minutes, seconds = divmod(remainder, 60)
     print(f"Time: {hours}:{minutes:02}:{seconds:02}")
 
-def partition_list(
-    predicate: Callable[[Any], bool],
-    list: list
-) -> tuple[list, list]:
+
+def partition_list(predicate: Callable[[Any], bool], list: list) -> tuple[list, list]:
     yes, no = [], []
 
     for e in list:
@@ -114,6 +114,7 @@ def partition_list(
             no.append(e)
 
     return yes, no
+
 
 def empty_gpu():
     """

@@ -18,6 +18,7 @@ COMMIT_BEFORE = "<commit_before>"
 COMMIT_MSG = "<commit_msg>"
 COMMIT_AFTER = "<commit_after>"
 
+
 def commit_format(before: str, message: str, after: str) -> Optional[str]:
     """
     Transform into git commit training format.
@@ -28,14 +29,12 @@ def commit_format(before: str, message: str, after: str) -> Optional[str]:
     if transform.is_empty(before) or transform.is_empty(after) or before == after:
         return None
 
-    return (
-        f"{COMMIT_BEFORE}{before}"
-        f"{COMMIT_MSG}{message}"
-        f"{COMMIT_AFTER}{after}"
-    )
+    return f"{COMMIT_BEFORE}{before}" f"{COMMIT_MSG}{message}" f"{COMMIT_AFTER}{after}"
+
 
 def default(element: dict[str, Any]) -> Optional[str]:
     return element["content"]
+
 
 def get1(element: dict[str, Any]) -> Optional[str]:
     """
@@ -52,9 +51,8 @@ def get1(element: dict[str, Any]) -> Optional[str]:
     original = element["content"].strip()
     without_types = transform.delete_types(original).strip()
 
-    return commit_format(
-        without_types, "Add type annotations and interfaces", original
-    )
+    return commit_format(without_types, "Add type annotations and interfaces", original)
+
 
 def get2(element: dict[str, Any]) -> Optional[str]:
     """
@@ -84,11 +82,10 @@ def get2(element: dict[str, Any]) -> Optional[str]:
 
     # Flip a coin to determine which training format to use
     if random.randint(0, 1) == 0:
-        return commit_format(
-            no_types, "Add type aliases and interfaces", no_anns
-        )
+        return commit_format(no_types, "Add type aliases and interfaces", no_anns)
     else:
         return commit_format(no_anns, "Add type annotations", original)
+
 
 def get3(element: dict[str, Any]) -> Optional[str]:
     """
@@ -120,9 +117,8 @@ def get3(element: dict[str, Any]) -> Optional[str]:
     if random.randint(0, 1) == 0:
         return commit_format(no_types, "Add type annotations", no_defs)
     else:
-        return commit_format(
-            no_defs, "Add type aliases and interfaces", original
-        )
+        return commit_format(no_defs, "Add type aliases and interfaces", original)
+
 
 def get4(element: dict[str, Any]) -> Optional[str]:
     """
@@ -180,24 +176,19 @@ def get4(element: dict[str, Any]) -> Optional[str]:
         type_to_add = transform.get_type_name(keep_node)
 
         return commit_format(
-            before_code,
-            f"Add a type alias or interface for {type_to_add}",
-            after_code
+            before_code, f"Add a type alias or interface for {type_to_add}", after_code
         )
 
-APPROACHES = {
-    "get1": get1,
-    "get2": get2,
-    "get3": get3,
-    "get4": get4
-}
+
+APPROACHES = {"get1": get1, "get2": get2, "get3": get3, "get4": get4}
+
 
 def _transform_example(
-    example: dict[str, Any],
-    approach: Callable[[dict[str, Any]], str]
+    example: dict[str, Any], approach: Callable[[dict[str, Any]], str]
 ) -> dict[str, Any]:
     example["content"] = approach(example)
     return example
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -208,6 +199,7 @@ def get_args():
 
     return parser.parse_args()
 
+
 def main():
     """
     Use this script to preprocess a dataset and save it to disk.
@@ -217,17 +209,15 @@ def main():
     datasets.disable_caching()
 
     dataset = util.load_dataset(
-        "nuprl/ts-training",
-        split="train",
-        revision="v1.1p1",
-        num_proc=args.workers
+        "nuprl/ts-training", split="train", revision="v1.1p1", num_proc=args.workers
     )
 
     new_dataset = dataset.map(
         functools.partial(_transform_example, approach=APPROACHES[args.approach]),
-        num_proc=args.workers
+        num_proc=args.workers,
     )
     util.save_dataset(new_dataset, args.output, args.workers)
+
 
 if __name__ == "__main__":
     main()

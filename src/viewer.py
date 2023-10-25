@@ -14,12 +14,13 @@ GREEN = "\033[32m"
 YELLOW = "\033[33m"
 RESET = "\033[39m"
 
+
 def print_diff(
     before: str,
     after: str,
     fromfile: str = "before",
     tofile: str = "after",
-    color: bool = False
+    color: bool = False,
 ) -> None:
     before_lines = before.splitlines(keepends=True)
     after_lines = after.splitlines(keepends=True)
@@ -39,9 +40,12 @@ def print_diff(
             print(d, end="")
     print()
 
+
 class Viewer(cmd.Cmd):
-    intro = "This is a shell for viewing StenoType experiment results.\n" \
-            "Type help or ? to list commands.\n"
+    intro = (
+        "This is a shell for viewing StenoType experiment results.\n"
+        "Type help or ? to list commands.\n"
+    )
     prompt = "> "
 
     def __init__(self: Self, dataset: Dataset | IterableDataset):
@@ -61,21 +65,30 @@ class Viewer(cmd.Cmd):
         self.total_completions = np.sum(dataset["num_completions"])
         self.total_type_checks = np.sum(dataset["num_type_checks"])
         self.pct_type_checks = self.total_type_checks / self.total_completions
-        self.avg_accuracy = np.mean([r["accuracy"]
-                                     for d in dataset for r in d["results"]])
-        self.avg_levenshtein = np.mean([r["levenshtein"]
-                                        for d in dataset for r in d["results"]])
-        self.avg_type_errors = np.mean([r["type_errors"]
-                                        for d in dataset for r in d["results"]])
-        self.avg_parse_errors = np.mean([r["parse_errors"]
-                                         for d in dataset for r in d["results"]])
+        self.avg_accuracy = np.mean(
+            [r["accuracy"] for d in dataset for r in d["results"]]
+        )
+        self.avg_levenshtein = np.mean(
+            [r["levenshtein"] for d in dataset for r in d["results"]]
+        )
+        self.avg_type_errors = np.mean(
+            [r["type_errors"] for d in dataset for r in d["results"]]
+        )
+        self.avg_parse_errors = np.mean(
+            [r["parse_errors"] for d in dataset for r in d["results"]]
+        )
         self.pass_1 = np.mean(dataset["pass@1"])
 
-        type_checks_problems = [str(i) for i, d in enumerate(dataset)
-                                if d["num_type_checks"] > 0]
+        type_checks_problems = [
+            str(i) for i, d in enumerate(dataset) if d["num_type_checks"] > 0
+        ]
         self.type_checks_completions = {
-            k: [f".{i}" for i, r in enumerate(dataset[int(k)]["results"])
-                if r["type_checks"]] for k in type_checks_problems
+            k: [
+                f".{i}"
+                for i, r in enumerate(dataset[int(k)]["results"])
+                if r["type_checks"]
+            ]
+            for k in type_checks_problems
         }
 
         # Set up aliases
@@ -132,10 +145,12 @@ class Viewer(cmd.Cmd):
         example = self.dataset[self.problem_idx]
         name = example["max_stars_repo_name"] + " " + example["max_stars_repo_path"]
 
-        self.prompt = f"[problem {p_idx}/{p_tot - 1}]" \
-                      f"[completion {c_idx}/{c_tot - 1}]" \
-                      f"[{name}] \n" \
-                      "> "
+        self.prompt = (
+            f"[problem {p_idx}/{p_tot - 1}]"
+            f"[completion {c_idx}/{c_tot - 1}]"
+            f"[{name}] \n"
+            "> "
+        )
 
     def problem_summary(self):
         """
@@ -144,14 +159,16 @@ class Viewer(cmd.Cmd):
         example = self.dataset[self.problem_idx]
 
         print("===PROBLEM INFO===")
-        print(f"Number of completions: {example['num_completions']}\n"
-              f"Number type checks: {example['num_type_checks']} "
-                f"({example['pct_type_checks']:.1%})\n"
-              f"Average accuracy: {example['avg_accuracy']:.1%}\n"
-              f"Average Levenshtein: {example['avg_levenshtein']:.1%}\n"
-              f"Average type errors: {example['avg_type_errors']:.1f}\n"
-              f"Average parse errors: {example['avg_parse_errors']:.1f}\n"
-              f"pass@1: {example['pass@1']:.1%}")
+        print(
+            f"Number of completions: {example['num_completions']}\n"
+            f"Number type checks: {example['num_type_checks']} "
+            f"({example['pct_type_checks']:.1%})\n"
+            f"Average accuracy: {example['avg_accuracy']:.1%}\n"
+            f"Average Levenshtein: {example['avg_levenshtein']:.1%}\n"
+            f"Average type errors: {example['avg_type_errors']:.1f}\n"
+            f"Average parse errors: {example['avg_parse_errors']:.1f}\n"
+            f"pass@1: {example['pass@1']:.1%}"
+        )
         if str(self.problem_idx) in self.type_checks_completions:
             print()
             completions = self.type_checks_completions[str(self.problem_idx)]
@@ -166,11 +183,14 @@ class Viewer(cmd.Cmd):
         completion = example["results"][self.completion_idx]
 
         print("===COMPLETION INFO===")
-        print(f"Accuracy: {completion['accuracy']:.1%}\n"
-              f"Levenshtein: {completion['levenshtein']:.1%}\n"
-              f"Type errors: {completion['type_errors']}\n"
-              f"Parse errors: {completion['parse_errors']}\n"
-              f"Type checks: ", end="")
+        print(
+            f"Accuracy: {completion['accuracy']:.1%}\n"
+            f"Levenshtein: {completion['levenshtein']:.1%}\n"
+            f"Type errors: {completion['type_errors']}\n"
+            f"Parse errors: {completion['parse_errors']}\n"
+            f"Type checks: ",
+            end="",
+        )
         if completion["type_checks"]:
             print(GREEN + "YES" + RESET)
         else:
@@ -216,8 +236,10 @@ class Viewer(cmd.Cmd):
         """
         if self.completion_idx == self.problem_completions - 1:
             if self.problem_idx == self.total_problems - 1:
-                print("error: reached end of completions list and cannot wrap "
-                      "around to next problem")
+                print(
+                    "error: reached end of completions list and cannot wrap "
+                    "around to next problem"
+                )
             else:
                 self.problem_idx += 1
                 self.completion_idx = 0
@@ -236,8 +258,10 @@ class Viewer(cmd.Cmd):
         """
         if self.completion_idx == 0:
             if self.problem_idx == 0:
-                print("error: reached beginning of completions list and cannot "
-                      "wrap around to previous problem")
+                print(
+                    "error: reached beginning of completions list and cannot "
+                    "wrap around to previous problem"
+                )
             else:
                 self.problem_idx -= 1
                 self.completion_idx = len(self.dataset[self.problem_idx]["results"]) - 1
@@ -283,9 +307,7 @@ class Viewer(cmd.Cmd):
                     p_idx = int(indices[0])
                     if 0 <= p_idx and p_idx < self.total_problems:
                         self.problem_idx = p_idx
-                        self.problem_completions = len(
-                            self.dataset[p_idx]["results"]
-                        )
+                        self.problem_completions = len(self.dataset[p_idx]["results"])
                     else:
                         error = True
                 if indices[1]:
@@ -314,21 +336,28 @@ class Viewer(cmd.Cmd):
         aliases: s
         """
         print("===DATASET SUMMARY===")
-        print(f"Total completions: {self.total_completions}\n"
-              f"Total type checks: {self.total_type_checks} "
-                f"({self.pct_type_checks:.1%})\n"
-              f"Average accuracy: {self.avg_accuracy:.1%}\n"
-              f"Average Levenshtein: {self.avg_levenshtein:.1%}\n"
-              f"Average type errors: {self.avg_type_errors:.1f}\n"
-              f"Average parse errors: {self.avg_parse_errors:.1f}\n"
-              f"pass@1: {self.pass_1:.1%}")
+        print(
+            f"Total completions: {self.total_completions}\n"
+            f"Total type checks: {self.total_type_checks} "
+            f"({self.pct_type_checks:.1%})\n"
+            f"Average accuracy: {self.avg_accuracy:.1%}\n"
+            f"Average Levenshtein: {self.avg_levenshtein:.1%}\n"
+            f"Average type errors: {self.avg_type_errors:.1f}\n"
+            f"Average parse errors: {self.avg_parse_errors:.1f}\n"
+            f"pass@1: {self.pass_1:.1%}"
+        )
         if self.type_checks_completions:
             print()
-            completions = [k for k, _ in sorted(
-                self.type_checks_completions.items(), key=lambda v: len(v[1])
-            )]
-            print("Problems that type check (in ascending order of completions "
-                  "that type check):")
+            completions = [
+                k
+                for k, _ in sorted(
+                    self.type_checks_completions.items(), key=lambda v: len(v[1])
+                )
+            ]
+            print(
+                "Problems that type check (in ascending order of completions "
+                "that type check):"
+            )
             print(GREEN + " ".join(completions) + RESET)
         print()
 
@@ -370,19 +399,11 @@ class Viewer(cmd.Cmd):
 
         print("===DIFF ORIGINAL/OUTPUT===")
         print_diff(
-            original_code,
-            output_code,
-            fromfile="original",
-            tofile="output",
-            color=True
+            original_code, output_code, fromfile="original", tofile="output", color=True
         )
         print("===DIFF INPUT/OUTPUT===")
         print_diff(
-            input_code,
-            output_code,
-            fromfile="input",
-            tofile="output",
-            color=True
+            input_code, output_code, fromfile="input", tofile="output", color=True
         )
 
     def do_view(self, arg: str):
@@ -403,15 +424,13 @@ class Viewer(cmd.Cmd):
         print("Exiting...")
         return True
 
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Results viewer for StenoType")
+    parser = argparse.ArgumentParser(description="Results viewer for StenoType")
 
     parser.add_argument(
-        "--dataset",
-        type=str,
-        required=True,
-        help="path to dataset to view")
+        "--dataset", type=str, required=True, help="path to dataset to view"
+    )
 
     args = parser.parse_args()
 
@@ -422,6 +441,7 @@ def parse_args() -> argparse.Namespace:
 
     return args
 
+
 def main():
     # Don't cache datasets
     datasets.disable_caching()
@@ -430,6 +450,7 @@ def main():
     dataset = util.load_dataset(args.dataset)
 
     Viewer(dataset).cmdloop()
+
 
 if __name__ == "__main__":
     main()
