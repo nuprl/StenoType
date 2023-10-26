@@ -96,7 +96,7 @@ def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
 
     # If we already processed this, early return
     if all(len(c.keys()) > 2 for r in dataset["results"] for c in r):
-        print(f"Skipping {results_path} because it was already processed")
+        print(f"Skipping {results_path} because it was already processed\n")
         return
 
     # TODO: we give one example per worker, but could be more efficient
@@ -109,6 +109,7 @@ def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
 
     # Save dataset
     util.save_dataset(dataset, results_path, args.workers)
+    print()
 
 
 def _pass_at_k(n: int, c: int, k: int) -> float:
@@ -132,7 +133,7 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
 
     num_completions = len(results)
     num_type_checks = len([r for r in results if r["type_checks"]])
-    pct_type_checks = num_type_checks / num_completions
+    pct_type_checks = 0 if num_completions == 0 else num_type_checks / num_completions
     avg_accuracy = np.mean([r["accuracy"] for r in results])
     avg_levenshtein = np.mean([r["levenshtein"] for r in results])
     avg_type_errors = np.mean([r["type_errors"] for r in results])
@@ -177,8 +178,8 @@ def _summarize_dataset(
     total_completions = np.sum(dataset["num_completions"])
     total_errors = all_completions - no_errors
     total_type_checks = np.sum(dataset["num_type_checks"])
-    pct_errors = total_errors / total_completions
-    pct_type_checks = total_type_checks / total_completions
+    pct_errors = 0 if total_completions == 0 else total_errors / total_completions
+    pct_type_checks = 0 if total_completions == 0 else total_type_checks / total_completions
     avg_accuracy = np.mean([r["accuracy"] for d in dataset for r in d["results"]])
     avg_levenshtein = np.mean([r["levenshtein"] for d in dataset for r in d["results"]])
     avg_type_errors = np.mean([r["type_errors"] for d in dataset for r in d["results"]])
