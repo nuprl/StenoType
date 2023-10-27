@@ -132,12 +132,12 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
     results = example["results"]
 
     num_completions = len(results)
-    num_type_checks = len([r for r in results if r["type_checks"]])
+    num_type_checks = len([r for r in results if r["type_checks"] if not r["error"]])
     pct_type_checks = 0 if num_completions == 0 else num_type_checks / num_completions
-    avg_accuracy = np.mean([r["accuracy"] for r in results])
-    avg_levenshtein = np.mean([r["levenshtein"] for r in results])
-    avg_type_errors = np.mean([r["type_errors"] for r in results])
-    avg_parse_errors = np.mean([r["parse_errors"] for r in results])
+    avg_accuracy = np.mean([r["accuracy"] for r in results if not r["error"]])
+    avg_levenshtein = np.mean([r["levenshtein"] for r in results if not r["error"]])
+    avg_type_errors = np.mean([r["type_errors"] for r in results if not r["error"]])
+    avg_parse_errors = np.mean([r["parse_errors"] for r in results if not r["error"]])
     pass_1 = _pass_at_k(num_completions, num_type_checks, 1)
 
     example["num_completions"] = num_completions
@@ -152,21 +152,16 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
     return example
 
 
-def _remove_errors(example: dict[str, Any]) -> dict[str, Any]:
-    example["results"] = [r for r in example["results"] if not r["error"]]
-    return example
-
-
 def _summarize_dataset(
     config: ExperimentConfig, args: argparse.Namespace
-) -> dict[str, Any]:
+) -> Optional[dict[str, Any]]:
     results_path = util.get_results_name(config.model_name, args.results_directory)
     dataset = util.load_dataset(results_path)
 
-    # Filter out results with errors
-    all_completions = len([r for d in dataset for r in d["results"]])
-    dataset = dataset.map(_remove_errors, num_proc=args.workers, desc="Removing errors")
-    no_errors = len([r for d in dataset for r in d["results"]])
+    # If we haven't processed this, print an error
+    if all(len(c.keys()) <= 2 for r in dataset["results"] for c in r):
+        print(f"Skipping {results_path} because it has not been evaluated!\n")
+        return None
 
     # Summarize each example
     dataset = dataset.map(
@@ -175,18 +170,24 @@ def _summarize_dataset(
     util.save_dataset(dataset, results_path, args.workers)
 
     # Summarize dataset
-    total_completions = np.sum(dataset["num_completions"])
-    total_errors = all_completions - no_errors
+    total_completions = len([r for d in dataset for r in d["results"]])
+    total_errors = len([r for d in dataset for r in d["results"] if r["error"]])
     total_type_checks = np.sum(dataset["num_type_checks"])
     pct_errors = 0 if total_completions == 0 else total_errors / total_completions
     pct_type_checks = (
         0 if total_completions == 0 else total_type_checks / total_completions
     )
-    avg_accuracy = np.mean([r["accuracy"] for d in dataset for r in d["results"]])
-    avg_levenshtein = np.mean([r["levenshtein"] for d in dataset for r in d["results"]])
-    avg_type_errors = np.mean([r["type_errors"] for d in dataset for r in d["results"]])
+    avg_accuracy = np.mean(
+        [r["accuracy"] for d in dataset for r in d["results"] if not r["error"]]
+    )
+    avg_levenshtein = np.mean(
+        [r["levenshtein"] for d in dataset for r in d["results"] if not r["error"]]
+    )
+    avg_type_errors = np.mean(
+        [r["type_errors"] for d in dataset for r in d["results"] if not r["error"]]
+    )
     avg_parse_errors = np.mean(
-        [r["parse_errors"] for d in dataset for r in d["results"]]
+        [r["parse_errors"] for d in dataset for r in d["results"] if not r["error"]]
     )
     pass_1 = np.mean(dataset["pass@1"])
 
@@ -211,6 +212,8 @@ def summarize_results(configs: list[ExperimentConfig], args: argparse.Namespace)
     for config in configs:
         # Note: _summarize_dataset adds columns to the dataset and writes to disk
         summary = _summarize_dataset(config, args)
+        if not summary:
+            continue
         summaries.append(summary)
 
         # Print the summary
