@@ -82,6 +82,8 @@ def approach4(model: Model, num_completions: int, original: str) -> list[str]:
 
         # Exit the loop if there's nothing left or we exceeded MAX_TRIES
         if not todo or counter > MAX_TRIES:
+            # Append the not-completed outputs to final_outputs
+            final_outputs += [t for t, _ in todo]
             break
 
         # For each completion in todo, pick one of the undefined types

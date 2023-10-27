@@ -179,7 +179,9 @@ def _summarize_dataset(
     total_errors = all_completions - no_errors
     total_type_checks = np.sum(dataset["num_type_checks"])
     pct_errors = 0 if total_completions == 0 else total_errors / total_completions
-    pct_type_checks = 0 if total_completions == 0 else total_type_checks / total_completions
+    pct_type_checks = (
+        0 if total_completions == 0 else total_type_checks / total_completions
+    )
     avg_accuracy = np.mean([r["accuracy"] for d in dataset for r in d["results"]])
     avg_levenshtein = np.mean([r["levenshtein"] for d in dataset for r in d["results"]])
     avg_type_errors = np.mean([r["type_errors"] for d in dataset for r in d["results"]])
