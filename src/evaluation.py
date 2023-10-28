@@ -12,7 +12,7 @@ import subprocess
 
 from model import Tokenizer
 from experiment import ExperimentConfig
-from util import ROOT_DIR
+from util import ROOT_DIR, transform
 import util
 
 ACCURACY_METRIC = evaluate.load("accuracy")
@@ -58,9 +58,13 @@ def _evaluate_one_completion(
 
     output = completion["output"]
 
+    original_untyped = transform.delete_types(original)
+    output_untyped = transform.delete_types(output)
+
     completion["token_count"] = len(tokenizer(output))
     completion["accuracy"] = _accuracy(tokenizer.tokenizer, original, output)
     completion["levenshtein"] = _levenshtein(original, output)
+    completion["untyped_levenshtein"] = _levenshtein(original_untyped, output_untyped)
 
     res = _typescript(output)
     if res:
@@ -136,6 +140,7 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
     pct_type_checks = 0 if num_completions == 0 else num_type_checks / num_completions
     avg_accuracy = np.mean([r["accuracy"] for r in results if not r["error"]])
     avg_levenshtein = np.mean([r["levenshtein"] for r in results if not r["error"]])
+    avg_untyped_levenshtein = np.mean([r["untyped_levenshtein"] for r in results if not r["error"]])
     avg_type_errors = np.mean([r["type_errors"] for r in results if not r["error"]])
     avg_parse_errors = np.mean([r["parse_errors"] for r in results if not r["error"]])
     pass_1 = _pass_at_k(num_completions, num_type_checks, 1)
@@ -145,6 +150,7 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
     example["pct_type_checks"] = pct_type_checks
     example["avg_accuracy"] = avg_accuracy
     example["avg_levenshtein"] = avg_levenshtein
+    example["avg_untyped_levenshtein"] = avg_untyped_levenshtein
     example["avg_type_errors"] = avg_type_errors
     example["avg_parse_errors"] = avg_parse_errors
     example["pass@1"] = pass_1
@@ -183,6 +189,9 @@ def _summarize_dataset(
     avg_levenshtein = np.mean(
         [r["levenshtein"] for d in dataset for r in d["results"] if not r["error"]]
     )
+    avg_untyped_levenshtein = np.mean(
+        [r["untyped_levenshtein"] for d in dataset for r in d["results"] if not r["error"]]
+    )
     avg_type_errors = np.mean(
         [r["type_errors"] for d in dataset for r in d["results"] if not r["error"]]
     )
@@ -201,6 +210,7 @@ def _summarize_dataset(
         "pct_type_checks": pct_type_checks,
         "avg_accuracy": avg_accuracy,
         "avg_levenshtein": avg_levenshtein,
+        "avg_untyped_levenshtein": avg_untyped_levenshtein,
         "avg_type_errors": avg_type_errors,
         "avg_parse_errors": avg_parse_errors,
         "pass@1": pass_1,
@@ -227,6 +237,7 @@ def summarize_results(configs: list[ExperimentConfig], args: argparse.Namespace)
         )
         print(f"Accuracy: {summary['avg_accuracy']:.1%}")
         print(f"Levenshtein: {summary['avg_levenshtein']:.1%}")
+        print(f"Untyped Levenshtein: {summary['avg_untyped_levenshtein']:.1%}")
         print(f"Type errors: {summary['avg_type_errors']:.1f}")
         print(f"Parse errors: {summary['avg_parse_errors']:.1f}")
         print(f"pass@1 (type checking): {summary['pass@1']:.1%}")
