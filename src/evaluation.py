@@ -152,17 +152,26 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
     num_completions = len(results)
     num_type_checks = len([r for r in results if r["type_checks"] if not r["error"]])
     pct_type_checks = 0 if num_completions == 0 else num_type_checks / num_completions
-    avg_accuracy = np.mean([r["accuracy"] for r in results if not r["error"]])
-    avg_levenshtein = np.mean([r["levenshtein"] for r in results if not r["error"]])
-    avg_untyped_levenshtein = np.mean(
+    avg_accuracy = util.mean_or_default(
+        [r["accuracy"] for r in results if not r["error"]], default=0
+    )
+    avg_levenshtein = util.mean_or_default(
+        [r["levenshtein"] for r in results if not r["error"]], default=0
+    )
+    avg_untyped_levenshtein = util.mean_or_default(
         [
             r["untyped_levenshtein"]
             for r in results
             if not r["error"] and r["untyped_levenshtein"]
-        ]
+        ],
+        default=0,
     )
-    avg_type_errors = np.mean([r["type_errors"] for r in results if not r["error"]])
-    avg_parse_errors = np.mean([r["parse_errors"] for r in results if not r["error"]])
+    avg_type_errors = util.mean_or_default(
+        [r["type_errors"] for r in results if not r["error"]]
+    )
+    avg_parse_errors = util.mean_or_default(
+        [r["parse_errors"] for r in results if not r["error"]]
+    )
     pass_1 = _pass_at_k(num_completions, num_type_checks, 1)
 
     example["num_completions"] = num_completions
@@ -203,13 +212,13 @@ def _summarize_dataset(
     pct_type_checks = (
         0 if total_completions == 0 else total_type_checks / total_completions
     )
-    avg_accuracy = np.mean(
+    avg_accuracy = util.mean_or_default(
         [r["accuracy"] for d in dataset for r in d["results"] if not r["error"]]
     )
-    avg_levenshtein = np.mean(
+    avg_levenshtein = util.mean_or_default(
         [r["levenshtein"] for d in dataset for r in d["results"] if not r["error"]]
     )
-    avg_untyped_levenshtein = np.mean(
+    avg_untyped_levenshtein = util.mean_or_default(
         [
             r["untyped_levenshtein"]
             for d in dataset
@@ -217,13 +226,13 @@ def _summarize_dataset(
             if not r["error"] and r["untyped_levenshtein"]
         ]
     )
-    avg_type_errors = np.mean(
+    avg_type_errors = util.mean_or_default(
         [r["type_errors"] for d in dataset for r in d["results"] if not r["error"]]
     )
-    avg_parse_errors = np.mean(
+    avg_parse_errors = util.mean_or_default(
         [r["parse_errors"] for d in dataset for r in d["results"] if not r["error"]]
     )
-    pass_1 = np.mean(dataset["pass@1"])
+    pass_1 = util.mean_or_default(dataset["pass@1"])
 
     return {
         "model": config.model_name,

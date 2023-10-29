@@ -124,3 +124,12 @@ def empty_gpu():
     destroy_model_parallel()
     gc.collect()
     torch.cuda.empty_cache()
+
+
+def mean_or_default(list: list, default: Optional[float] = None) -> Optional[float]:
+    if list:
+        return np.mean(list)
+    elif default is not None:
+        return default
+    else:
+        return None
