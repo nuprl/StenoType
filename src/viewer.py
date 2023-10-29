@@ -64,7 +64,11 @@ class Viewer(cmd.Cmd):
         # Pre-compute dataset summary
         self.total_completions = len([r for d in dataset for r in d["results"]])
         self.total_type_checks = np.sum(dataset["num_type_checks"])
-        self.pct_type_checks = 0 if self.total_completions == 0 else self.total_type_checks / self.total_completions
+        self.pct_type_checks = (
+            0
+            if self.total_completions == 0
+            else self.total_type_checks / self.total_completions
+        )
         self.avg_accuracy = np.mean(
             [r["accuracy"] for d in dataset for r in d["results"] if not r["error"]]
         )
@@ -72,7 +76,12 @@ class Viewer(cmd.Cmd):
             [r["levenshtein"] for d in dataset for r in d["results"] if not r["error"]]
         )
         self.avg_untyped_levenshtein = np.mean(
-            [r["untyped_levenshtein"] for d in dataset for r in d["results"] if not r["error"]]
+            [
+                r["untyped_levenshtein"]
+                for d in dataset
+                for r in d["results"]
+                if not r["error"]
+            ]
         )
         self.avg_type_errors = np.mean(
             [r["type_errors"] for d in dataset for r in d["results"] if not r["error"]]

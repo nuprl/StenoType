@@ -1,6 +1,7 @@
-from functools import partial
+from concurrent import futures
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
+from tqdm import tqdm
 from transformers import PreTrainedTokenizer
 from typing import Any, Optional
 import argparse
@@ -50,11 +51,15 @@ def _typescript(contents: str) -> Optional[tuple[int, int]]:
     return None
 
 
-def _evaluate_one_completion(
-    completion: dict[str, Any], tokenizer: Tokenizer, original: str
-) -> dict[str, Any]:
+def _evaluate_completion(
+    p_idx: int,
+    c_idx: int,
+    original: str,
+    completion: dict[str, Any],
+    tokenizer: Tokenizer,
+) -> tuple[int, int, dict[str, Any]]:
     if completion["error"]:
-        return completion
+        return p_idx, c_idx, completion
 
     output = completion["output"]
 
@@ -75,18 +80,7 @@ def _evaluate_one_completion(
     else:
         completion["error"] = True
 
-    return completion
-
-
-def _evaluate_example(
-    example: dict[str, Any], tokenizer: PreTrainedTokenizer
-) -> dict[str, Any]:
-    original = example["content"]
-    completions = example["results"]
-    example["results"] = [
-        _evaluate_one_completion(c, tokenizer, original) for c in completions
-    ]
-    return example
+    return p_idx, c_idx, completion
 
 
 def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
@@ -103,13 +97,19 @@ def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
         print(f"Skipping {results_path} because it was already processed\n")
         return
 
-    # TODO: we give one example per worker, but could be more efficient
-    # (and complicated) to give one completion per worker
-    dataset = dataset.map(
-        partial(_evaluate_example, tokenizer=tokenizer),
-        num_proc=args.workers,
-        desc="Evaluating results",
-    )
+    # Set up a process pool so we can give each completion to a process
+    with futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
+        fs = [
+            executor.submit(
+                _evaluate_completion, p_idx, c_idx, d["content"], c, tokenizer
+            )
+            for p_idx, d in enumerate(dataset)
+            for c_idx, c in enumerate(d["results"])
+        ]
+        # Update the dataset directly with the completion result
+        for i, f in enumerate(tqdm(fs, desc="Evaluating results", miniters=1)):
+            p_idx, c_idx, result = f.result()
+            dataset[p_idx]["results"][c_idx] = result
 
     # Save dataset
     util.save_dataset(dataset, results_path, args.workers)
@@ -140,7 +140,9 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
     pct_type_checks = 0 if num_completions == 0 else num_type_checks / num_completions
     avg_accuracy = np.mean([r["accuracy"] for r in results if not r["error"]])
     avg_levenshtein = np.mean([r["levenshtein"] for r in results if not r["error"]])
-    avg_untyped_levenshtein = np.mean([r["untyped_levenshtein"] for r in results if not r["error"]])
+    avg_untyped_levenshtein = np.mean(
+        [r["untyped_levenshtein"] for r in results if not r["error"]]
+    )
     avg_type_errors = np.mean([r["type_errors"] for r in results if not r["error"]])
     avg_parse_errors = np.mean([r["parse_errors"] for r in results if not r["error"]])
     pass_1 = _pass_at_k(num_completions, num_type_checks, 1)
@@ -190,7 +192,12 @@ def _summarize_dataset(
         [r["levenshtein"] for d in dataset for r in d["results"] if not r["error"]]
     )
     avg_untyped_levenshtein = np.mean(
-        [r["untyped_levenshtein"] for d in dataset for r in d["results"] if not r["error"]]
+        [
+            r["untyped_levenshtein"]
+            for d in dataset
+            for r in d["results"]
+            if not r["error"]
+        ]
     )
     avg_type_errors = np.mean(
         [r["type_errors"] for d in dataset for r in d["results"] if not r["error"]]
