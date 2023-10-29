@@ -1,3 +1,4 @@
+from functools import lru_cache
 from pathlib import Path
 from tree_sitter import Language, Parser, Node, Tree
 from typing import Optional
@@ -14,8 +15,12 @@ PARSER = Parser()
 PARSER.set_language(LANGUAGE)
 
 
+@lru_cache(maxsize=32)
 def parse(s: str) -> Tree:
-    """Parses the given string into a tree."""
+    """
+    Parses the given string into a tree. Uses lru_cache so we don't need to
+    repeatedly parse the same string.
+    """
     return PARSER.parse(s.encode("utf-8"))
 
 
