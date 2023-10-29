@@ -63,13 +63,9 @@ def _evaluate_completion(
 
     output = completion["output"]
 
-    original_untyped = transform.delete_types(original)
-    output_untyped = transform.delete_types(output)
-
     completion["token_count"] = len(tokenizer(output))
     completion["accuracy"] = _accuracy(tokenizer.tokenizer, original, output)
     completion["levenshtein"] = _levenshtein(original, output)
-    completion["untyped_levenshtein"] = _levenshtein(original_untyped, output_untyped)
 
     res = _typescript(output)
     if res:
@@ -77,6 +73,16 @@ def _evaluate_completion(
         completion["type_errors"] = te
         completion["parse_errors"] = pe
         completion["type_checks"] = te == 0 and pe == 0
+
+        # Only compute untyped Levenshtein if the output type checks
+        if completion["type_checks"]:
+            original_untyped = transform.delete_types(original)
+            output_untyped = transform.delete_types(output)
+            completion["untyped_levenshtein"] = _levenshtein(
+                original_untyped, output_untyped
+            )
+        else:
+            completion["untyped_levenshtein"] = None
     else:
         completion["error"] = True
 
@@ -141,7 +147,11 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
     avg_accuracy = np.mean([r["accuracy"] for r in results if not r["error"]])
     avg_levenshtein = np.mean([r["levenshtein"] for r in results if not r["error"]])
     avg_untyped_levenshtein = np.mean(
-        [r["untyped_levenshtein"] for r in results if not r["error"]]
+        [
+            r["untyped_levenshtein"]
+            for r in results
+            if not r["error"] and r["untyped_levenshtein"]
+        ]
     )
     avg_type_errors = np.mean([r["type_errors"] for r in results if not r["error"]])
     avg_parse_errors = np.mean([r["parse_errors"] for r in results if not r["error"]])
@@ -196,7 +206,7 @@ def _summarize_dataset(
             r["untyped_levenshtein"]
             for d in dataset
             for r in d["results"]
-            if not r["error"]
+            if not r["error"] and r["untyped_levenshtein"]
         ]
     )
     avg_type_errors = np.mean(
@@ -244,7 +254,10 @@ def summarize_results(configs: list[ExperimentConfig], args: argparse.Namespace)
         )
         print(f"Accuracy: {summary['avg_accuracy']:.1%}")
         print(f"Levenshtein: {summary['avg_levenshtein']:.1%}")
-        print(f"Untyped Levenshtein: {summary['avg_untyped_levenshtein']:.1%}")
+        print(
+            "Untyped Levenshtein (for files that type check): "
+            f"{summary['avg_untyped_levenshtein']:.1%}"
+        )
         print(f"Type errors: {summary['avg_type_errors']:.1f}")
         print(f"Parse errors: {summary['avg_parse_errors']:.1f}")
         print(f"pass@1 (type checking): {summary['pass@1']:.1%}")

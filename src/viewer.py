@@ -80,7 +80,7 @@ class Viewer(cmd.Cmd):
                 r["untyped_levenshtein"]
                 for d in dataset
                 for r in d["results"]
-                if not r["error"]
+                if not r["error"] and r["untyped_levenshtein"]
             ]
         )
         self.avg_type_errors = np.mean(
@@ -177,7 +177,7 @@ class Viewer(cmd.Cmd):
             f"({example['pct_type_checks']:.1%})\n"
             f"Average accuracy: {example['avg_accuracy']:.1%}\n"
             f"Average Levenshtein: {example['avg_levenshtein']:.1%}\n"
-            f"Average untyped Levenshtein: {example['avg_untyped_levenshtein']:.1%}\n"
+            f"Average untyped Levenshtein (for files that type check): {example['avg_untyped_levenshtein']:.1%}\n"
             f"Average type errors: {example['avg_type_errors']:.1f}\n"
             f"Average parse errors: {example['avg_parse_errors']:.1f}\n"
             f"pass@1: {example['pass@1']:.1%}"
@@ -199,7 +199,7 @@ class Viewer(cmd.Cmd):
         print(
             f"Accuracy: {completion['accuracy']:.1%}\n"
             f"Levenshtein: {completion['levenshtein']:.1%}\n"
-            f"Untyped Levenshtein: {completion['untyped_levenshtein']:.1%}\n"
+            f"Untyped Levenshtein (for files that type check): {completion['untyped_levenshtein']:.1%}\n"
             f"Type errors: {completion['type_errors']}\n"
             f"Parse errors: {completion['parse_errors']}\n"
             f"Type checks: ",
