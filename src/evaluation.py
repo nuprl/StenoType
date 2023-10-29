@@ -1,4 +1,4 @@
-from concurrent import futures
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from tqdm import tqdm
@@ -104,7 +104,7 @@ def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
         return
 
     # Set up a process pool so we can give each completion to a process
-    with futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
+    with ProcessPoolExecutor(max_workers=args.workers) as executor:
         fs = [
             executor.submit(
                 _evaluate_completion, p_idx, c_idx, d["content"], c, tokenizer
@@ -112,10 +112,18 @@ def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
             for p_idx, d in enumerate(dataset)
             for c_idx, c in enumerate(d["results"])
         ]
-        # Update the dataset directly with the completion result
+
+        # We can't update the dataset directly, so save the results in a map
+        results: list[dict[int, Any]] = [{} for _ in range(len(dataset))]
         for i, f in enumerate(tqdm(fs, desc="Evaluating results", miniters=1)):
             p_idx, c_idx, result = f.result()
-            dataset[p_idx]["results"][c_idx] = result
+            results[p_idx][c_idx] = result
+
+        # Now write the results to the dataset
+        results_list = [[r[k] for k in sorted(r.keys())] for r in results]
+        dataset = dataset.remove_columns("results").add_column(
+            name="results", column=results_list
+        )
 
     # Save dataset
     util.save_dataset(dataset, results_path, args.workers)
