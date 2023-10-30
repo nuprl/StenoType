@@ -1,6 +1,8 @@
 from datasets import Dataset, IterableDataset
 from pathlib import Path
+from peft import LoraConfig
 from transformers import AutoTokenizer, TrainingArguments, logging, set_seed
+from typing import Optional
 import argparse
 import os
 
@@ -23,7 +25,7 @@ additional processing, e.g. interleaving and filtering multiple datasets.
 """
 
 MODEL_PATH = str(
-    Path(Path(__file__).parent, "..", "..", "models", "starcoderbase-1b").resolve()
+    Path(Path(__file__).parent, "..", "..", "models", "starcoderbase-7b").resolve()
 )
 
 # We are using a very large dataset, so it's not feasible to download the whole
@@ -39,14 +41,26 @@ TOTAL_TOKENS = 7_100_000_000 * 2
 ########## StarCoder-1B on an A100/H100
 # We pack the tokens into a ConstantLengthDataset,
 # where each example has SEQUENCE_LENGTH tokens
-SEQUENCE_LENGTH = 8 * 1024
-EPOCHS = 1
-BATCH_SIZE = 2
-GRADIENT_ACCUMULATION_STEPS = 4
+# SEQUENCE_LENGTH = 8 * 1024
+# EPOCHS = 1
+# BATCH_SIZE = 2
+# GRADIENT_ACCUMULATION_STEPS = 4
 
 # Roughly 1.7M examples
 # Roughly 217K / NUM_GPUS steps
 ########## StarCoder-1B on an A100/H100
+
+########## StarCoder-7B on an A100 with LoRA
+# We pack the tokens into a ConstantLengthDataset,
+# where each example has SEQUENCE_LENGTH tokens
+SEQUENCE_LENGTH = 8 * 1024
+EPOCHS = 1
+BATCH_SIZE = 1
+GRADIENT_ACCUMULATION_STEPS = 4
+
+# Roughly 1.7M examples
+# Roughly 433K / NUM_GPUS steps
+########## StarCoder-7B on an A100 with LoRA
 
 NUM_EXAMPLES = TOTAL_TOKENS // SEQUENCE_LENGTH
 
@@ -82,11 +96,23 @@ TRAINING_ARGS = TrainingArguments(
     dataloader_drop_last=True,
     eval_steps=50,  # save_steps must be a multiple of eval_steps
     run_name="StarCoder-finetuned",
+    load_best_model_at_end=True,  # needed for LoRA callbacks
     optim="adamw_torch",
     report_to="wandb",
     ddp_find_unused_parameters=False,
     resume_from_checkpoint=False,  # only set to True if there is an existing checkpoint!
     gradient_checkpointing=True,
+)
+
+# If not using LoRA, set to None
+# LORA_CONFIG: Optional[LoraConfig] = None
+LORA_CONFIG: Optional[LoraConfig] = LoraConfig(
+    r=16,
+    lora_alpha=32,
+    lora_dropout=0.05,
+    bias="none",
+    task_type="CAUSAL_LM",
+    target_modules=["c_proj", "c_attn", "q_attn"],
 )
 
 DATASET_CONFIG = DatasetConfig(
@@ -124,7 +150,9 @@ def main():
     train_dataset, eval_dataset = finetune.create_datasets(
         dataset, tokenizer, DATASET_CONFIG, args.seed
     )
-    finetune.run_training(MODEL_PATH, TRAINING_ARGS, train_dataset, eval_dataset)
+    finetune.run_training(
+        MODEL_PATH, TRAINING_ARGS, LORA_CONFIG, train_dataset, eval_dataset
+    )
 
 
 if __name__ == "__main__":

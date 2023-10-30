@@ -26,6 +26,7 @@ def load_dataset(
     split: Optional[str] = None,
     revision: Optional[str] = None,
     num_proc: Optional[int] = None,
+    streaming: Optional[bool] = None,
 ) -> Dataset | IterableDataset:
     """
     Load a dataset. Tries to interpret dataset as a path and loads a local file
@@ -43,7 +44,11 @@ def load_dataset(
     else:
         print(f"Loading dataset {dataset} from the Hugging Face Hub...", flush=True)
         return datasets.load_dataset(
-            dataset, split=split, revision=revision, num_proc=num_proc
+            dataset,
+            split=split,
+            revision=revision,
+            num_proc=num_proc,
+            streaming=streaming,
         )
 
 
