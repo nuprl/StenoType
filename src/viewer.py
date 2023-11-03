@@ -200,6 +200,8 @@ class Viewer(cmd.Cmd):
             f"Accuracy: {completion['accuracy']:.1%}\n"
             f"Levenshtein: {completion['levenshtein']:.1%}\n"
             f"Untyped Levenshtein (for files that type check): {completion['untyped_levenshtein']:.1%}\n"
+            if completion["untyped_levenshtein"]
+            else ""
             f"Type errors: {completion['type_errors']}\n"
             f"Parse errors: {completion['parse_errors']}\n"
             f"Type checks: ",

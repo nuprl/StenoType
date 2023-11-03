@@ -125,7 +125,9 @@ def main():
         ExperimentConfig(dataset, "stenotype-7b-a6d445d-ckpt250", experiment.approach4),
         ExperimentConfig(dataset, "stenotype-7b-a6d445d-ckpt500", experiment.approach4),
         ExperimentConfig(dataset, "stenotype-7b-a6d445d-ckpt750", experiment.approach4),
-        ExperimentConfig(dataset, "stenotype-7b-a6d445d-ckpt1000", experiment.approach4),
+        ExperimentConfig(
+            dataset, "stenotype-7b-a6d445d-ckpt1000", experiment.approach4
+        ),
     ]
 
     if args.show_configs:
