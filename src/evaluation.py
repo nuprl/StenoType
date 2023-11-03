@@ -164,7 +164,7 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
             for r in results
             if not r["error"] and r["untyped_levenshtein"]
         ],
-        default=0,
+        default=0.0,
     )
     avg_type_errors = util.mean_or_default(
         [r["type_errors"] for r in results if not r["error"]]
