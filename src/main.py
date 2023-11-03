@@ -100,6 +100,7 @@ def main():
 
     configs = [
         ExperimentConfig(dataset, "starcoderbase-1b", experiment.approach1),
+        ExperimentConfig(dataset, "starcoderbase-7b", experiment.approach1),
         ExperimentConfig(dataset, "stenotype-1b-75ce914-ckpt100", experiment.approach1),
         ExperimentConfig(dataset, "stenotype-1b-54d5802-ckpt100", experiment.approach2),
         ExperimentConfig(dataset, "stenotype-1b-2b77ede-ckpt100", experiment.approach3),
@@ -113,12 +114,18 @@ def main():
         ExperimentConfig(
             dataset, "stenotype-1b-1753dc0-ckpt1000", experiment.approach3
         ),
+        ExperimentConfig(dataset, "starcoderbase-1b-approach4", experiment.approach4),
         ExperimentConfig(dataset, "stenotype-1b-ef65cb9-ckpt250", experiment.approach4),
         ExperimentConfig(dataset, "stenotype-1b-ef65cb9-ckpt500", experiment.approach4),
         ExperimentConfig(dataset, "stenotype-1b-ef65cb9-ckpt750", experiment.approach4),
         ExperimentConfig(
             dataset, "stenotype-1b-ef65cb9-ckpt1000", experiment.approach4
         ),
+        ExperimentConfig(dataset, "starcoderbase-7b-approach4", experiment.approach4),
+        ExperimentConfig(dataset, "stenotype-7b-a6d445d-ckpt250", experiment.approach4),
+        ExperimentConfig(dataset, "stenotype-7b-a6d445d-ckpt500", experiment.approach4),
+        ExperimentConfig(dataset, "stenotype-7b-a6d445d-ckpt750", experiment.approach4),
+        ExperimentConfig(dataset, "stenotype-7b-a6d445d-ckpt1000", experiment.approach4),
     ]
 
     if args.show_configs:
