@@ -36,6 +36,8 @@ def print_diff(
                 print(GREEN + d, end=RESET)
             elif d.startswith("-"):
                 print(RED + d, end=RESET)
+            else:
+                print(d, end="")
         else:
             print(d, end="")
     print()
