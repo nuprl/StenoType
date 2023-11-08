@@ -6,6 +6,7 @@ import cmd
 import datasets
 import difflib
 import numpy as np
+import re
 
 import util
 
@@ -13,6 +14,8 @@ RED = "\033[31m"
 GREEN = "\033[32m"
 YELLOW = "\033[33m"
 RESET = "\033[39m"
+
+INDEX_SPEC_RE = re.compile(r"^(\d+\.\d+|\d+\.|\d+|\.\d+)$")
 
 
 def print_diff(
@@ -93,16 +96,16 @@ class Viewer(cmd.Cmd):
         )
         self.pass_1 = np.mean(dataset["pass@1"])
 
-        type_checks_problems = [
-            str(i) for i, d in enumerate(dataset) if d["num_type_checks"] > 0
+        correct_problems = [
+            str(i)
+            for i, d in enumerate(dataset)
+            if len([r for r in dataset[i]["results"] if r["correct"]]) > 0
         ]
-        self.type_checks_completions = {
+        self.correct_completions = {
             k: [
-                f".{i}"
-                for i, r in enumerate(dataset[int(k)]["results"])
-                if r["type_checks"]
+                str(i) for i, r in enumerate(dataset[int(k)]["results"]) if r["correct"]
             ]
-            for k in type_checks_problems
+            for k in correct_problems
         }
 
         # Set up aliases
@@ -147,6 +150,8 @@ class Viewer(cmd.Cmd):
             return self.do_quit(arg)
         if cmd in self.aliases:
             return self.aliases[cmd](arg)
+        if INDEX_SPEC_RE.match(line):
+            return self.do_goto(line)
         else:
             super().default(line)
 
@@ -184,11 +189,21 @@ class Viewer(cmd.Cmd):
             f"Average parse errors: {example['avg_parse_errors']:.1f}\n"
             f"pass@1: {example['pass@1']:.1%}"
         )
-        if str(self.problem_idx) in self.type_checks_completions:
+        if str(self.problem_idx) in self.correct_completions:
             print()
-            completions = self.type_checks_completions[str(self.problem_idx)]
-            print("Completions that type check:")
-            print(GREEN + " ".join(completions) + RESET)
+            completions = self.correct_completions[str(self.problem_idx)]
+            dedup = {example["results"][int(i)]["output"]: [] for i in completions}
+            for c in completions:
+                output = example["results"][int(c)]["output"]
+                dedup[output].append(f".{c}")
+
+            print(
+                f"Completions that are correct ({len(dedup)} unique, on separate lines):"
+            )
+            print(GREEN, end="")
+            for dlist in dedup.values():
+                print(" ".join(dlist))
+            print(RESET)
 
     def completion_summary(self):
         """
@@ -200,16 +215,22 @@ class Viewer(cmd.Cmd):
         print("===COMPLETION INFO===")
         print(
             f"Accuracy: {completion['accuracy']:.1%}\n"
-            f"Levenshtein: {completion['levenshtein']:.1%}\n"
-            f"Untyped Levenshtein (for files that type check): {completion['untyped_levenshtein']:.1%}\n"
-            if completion["untyped_levenshtein"]
-            else ""
-            f"Type errors: {completion['type_errors']}\n"
-            f"Parse errors: {completion['parse_errors']}\n"
-            f"Type checks: ",
+            f"Levenshtein: {completion['levenshtein']:.1%}\n",
             end="",
         )
-        if completion["type_checks"]:
+        if completion["untyped_levenshtein"]:
+            print(
+                f"Untyped Levenshtein (for files that type check): {completion['untyped_levenshtein']:.1%}\n",
+                end="",
+            )
+        print(
+            f"Type errors: {completion['type_errors']}\n"
+            f"Parse errors: {completion['parse_errors']}\n"
+            f"Type checks: {completion['type_checks']}\n"
+            "Correct: ",
+            end="",
+        )
+        if completion["correct"]:
             print(GREEN + "YES" + RESET)
         else:
             print(RED + "NO" + RESET)
@@ -300,6 +321,7 @@ class Viewer(cmd.Cmd):
           goto 1.       equivalent to goto 1.0
           goto 1        equivalent to goto 1.0
           goto .3       equivalent to goto [current problem index].3
+          3.4           equivalent to goto 3.4
 
         aliases: g
         """
@@ -365,18 +387,15 @@ class Viewer(cmd.Cmd):
             f"Average parse errors: {self.avg_parse_errors:.1f}\n"
             f"pass@1: {self.pass_1:.1%}"
         )
-        if self.type_checks_completions:
+        if self.correct_completions:
             print()
             completions = [
                 k
                 for k, _ in sorted(
-                    self.type_checks_completions.items(), key=lambda v: len(v[1])
+                    self.correct_completions.items(), key=lambda v: len(v[1])
                 )
             ]
-            print(
-                "Problems that type check (in ascending order of completions "
-                "that type check):"
-            )
+            print("Correct problems (in ascending order of correct completions):")
             print(GREEN + " ".join(completions) + RESET)
         print()
 
