@@ -78,13 +78,15 @@ def _evaluate_completion(
         if completion["type_checks"]:
             original_untyped = transform.delete_types(original)
             output_untyped = transform.delete_types(output)
-            completion["untyped_levenshtein"] = _levenshtein(
-                original_untyped, output_untyped
-            )
+            untyped_levenshtein = _levenshtein(original_untyped, output_untyped)
+            completion["untyped_levenshtein"] = untyped_levenshtein
+            completion["correct"] = untyped_levenshtein >= 0.99
         else:
             completion["untyped_levenshtein"] = None
+            completion["correct"] = False
     else:
         completion["error"] = True
+        completion["correct"] = False
 
     return p_idx, c_idx, completion
 
@@ -152,6 +154,7 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
     num_completions = len(results)
     num_type_checks = len([r for r in results if r["type_checks"] if not r["error"]])
     pct_type_checks = 0 if num_completions == 0 else num_type_checks / num_completions
+    num_correct = len([r for r in results if r["correct"]])
     avg_accuracy = util.mean_or_default(
         [r["accuracy"] for r in results if not r["error"]], default=0
     )
@@ -172,7 +175,7 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
     avg_parse_errors = util.mean_or_default(
         [r["parse_errors"] for r in results if not r["error"]]
     )
-    pass_1 = _pass_at_k(num_completions, num_type_checks, 1)
+    pass_1 = _pass_at_k(num_completions, num_correct, 1)
 
     example["num_completions"] = num_completions
     example["num_type_checks"] = num_type_checks
