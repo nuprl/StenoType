@@ -389,14 +389,8 @@ class Viewer(cmd.Cmd):
         )
         if self.correct_completions:
             print()
-            completions = [
-                k
-                for k, _ in sorted(
-                    self.correct_completions.items(), key=lambda v: len(v[1])
-                )
-            ]
-            print("Correct problems (in ascending order of correct completions):")
-            print(GREEN + " ".join(completions) + RESET)
+            print("Correct problems: ", end="")
+            print(GREEN + " ".join(self.correct_completions.keys()) + RESET)
         print()
 
         self.problem_summary()

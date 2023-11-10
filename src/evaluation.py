@@ -17,6 +17,7 @@ from util import ROOT_DIR, transform
 import util
 
 ACCURACY_METRIC = evaluate.load("accuracy")
+LEVENSHTEIN_THRESHOLD = 0.99
 
 
 def _accuracy(tokenizer: PreTrainedTokenizer, original: str, output: str) -> float:
@@ -80,7 +81,13 @@ def _evaluate_completion(
             output_untyped = transform.delete_types(output)
             untyped_levenshtein = _levenshtein(original_untyped, output_untyped)
             completion["untyped_levenshtein"] = untyped_levenshtein
-            completion["correct"] = untyped_levenshtein >= 0.99
+
+            # To be correct, needs to type check, have untyped_levenshtein exceed
+            # a threshold, and the output needs to do something
+            completion["correct"] = (
+                untyped_levenshtein >= LEVENSHTEIN_THRESHOLD
+                and original_untyped != output
+            )
         else:
             completion["untyped_levenshtein"] = None
             completion["correct"] = False
