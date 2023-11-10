@@ -3,7 +3,11 @@ import argparse
 import datasets
 
 from evaluation import run_evaluation, summarize_results
-from experiment import ExperimentConfig, run_experiment
+from experiment import (
+    DatasetConfig as DatasetConf,
+    ExperimentConfig as ExpConf,
+    run_experiment,
+)
 import experiment
 import util
 
@@ -93,41 +97,33 @@ def main():
 
     args = parse_args()
 
-    # TODO: Right now we only have one evaluation dataset
-    # maybe require all datasets to be on disk
-    # also, this loads the dataset even when we don't need it (e.g. for --evaluate)
-    dataset = util.load_dataset("../datasets/stenotype-eval-dataset-subset")
+    ts_dataset = DatasetConf(
+        name="ts", dataset_path="../datasets/stenotype-eval-dataset-subset"
+    )
+    # TODO: js dataset
 
     configs = [
-        ExperimentConfig(dataset, "starcoderbase-1b", experiment.approach1),
-        ExperimentConfig(dataset, "starcoderbase-7b", experiment.approach1),
-        ExperimentConfig(dataset, "stenotype-1b-75ce914-ckpt100", experiment.approach1),
-        ExperimentConfig(dataset, "stenotype-1b-54d5802-ckpt100", experiment.approach2),
-        ExperimentConfig(dataset, "stenotype-1b-2b77ede-ckpt100", experiment.approach3),
-        ExperimentConfig(dataset, "stenotype-1b-7904b4a-ckpt200", experiment.approach1),
-        ExperimentConfig(dataset, "stenotype-1b-7904b4a-ckpt600", experiment.approach1),
-        ExperimentConfig(
-            dataset, "stenotype-1b-7904b4a-ckpt1000", experiment.approach1
-        ),
-        ExperimentConfig(dataset, "stenotype-1b-1753dc0-ckpt200", experiment.approach3),
-        ExperimentConfig(dataset, "stenotype-1b-1753dc0-ckpt600", experiment.approach3),
-        ExperimentConfig(
-            dataset, "stenotype-1b-1753dc0-ckpt1000", experiment.approach3
-        ),
-        ExperimentConfig(dataset, "starcoderbase-1b-approach4", experiment.approach4),
-        ExperimentConfig(dataset, "stenotype-1b-ef65cb9-ckpt250", experiment.approach4),
-        ExperimentConfig(dataset, "stenotype-1b-ef65cb9-ckpt500", experiment.approach4),
-        ExperimentConfig(dataset, "stenotype-1b-ef65cb9-ckpt750", experiment.approach4),
-        ExperimentConfig(
-            dataset, "stenotype-1b-ef65cb9-ckpt1000", experiment.approach4
-        ),
-        ExperimentConfig(dataset, "starcoderbase-7b-approach4", experiment.approach4),
-        ExperimentConfig(dataset, "stenotype-7b-a6d445d-ckpt250", experiment.approach4),
-        ExperimentConfig(dataset, "stenotype-7b-a6d445d-ckpt500", experiment.approach4),
-        ExperimentConfig(dataset, "stenotype-7b-a6d445d-ckpt750", experiment.approach4),
-        ExperimentConfig(
-            dataset, "stenotype-7b-a6d445d-ckpt1000", experiment.approach4
-        ),
+        ExpConf(ts_dataset, "starcoderbase-1b", experiment.approach1),
+        ExpConf(ts_dataset, "starcoderbase-7b", experiment.approach1),
+        ExpConf(ts_dataset, "stenotype-1b-75ce914-ckpt100", experiment.approach1),
+        ExpConf(ts_dataset, "stenotype-1b-54d5802-ckpt100", experiment.approach2),
+        ExpConf(ts_dataset, "stenotype-1b-2b77ede-ckpt100", experiment.approach3),
+        # ExpConf(ts_dataset, "stenotype-1b-7904b4a-ckpt200", experiment.approach1),
+        # ExpConf(ts_dataset, "stenotype-1b-7904b4a-ckpt600", experiment.approach1),
+        # ExpConf(ts_dataset, "stenotype-1b-7904b4a-ckpt1000", experiment.approach1),
+        # ExpConf(ts_dataset, "stenotype-1b-1753dc0-ckpt200", experiment.approach3),
+        # ExpConf(ts_dataset, "stenotype-1b-1753dc0-ckpt600", experiment.approach3),
+        # ExpConf(ts_dataset, "stenotype-1b-1753dc0-ckpt1000", experiment.approach3),
+        ExpConf(ts_dataset, "starcoderbase-1b", experiment.approach4),
+        # ExpConf(ts_dataset, "stenotype-1b-ef65cb9-ckpt250", experiment.approach4),
+        # ExpConf(ts_dataset, "stenotype-1b-ef65cb9-ckpt500", experiment.approach4),
+        # ExpConf(ts_dataset, "stenotype-1b-ef65cb9-ckpt750", experiment.approach4),
+        ExpConf(ts_dataset, "stenotype-1b-ef65cb9-ckpt1000", experiment.approach4),
+        ExpConf(ts_dataset, "starcoderbase-7b", experiment.approach4),
+        # ExpConf(ts_dataset, "stenotype-7b-a6d445d-ckpt250", experiment.approach4),
+        # ExpConf(ts_dataset, "stenotype-7b-a6d445d-ckpt500", experiment.approach4),
+        # ExpConf(ts_dataset, "stenotype-7b-a6d445d-ckpt750", experiment.approach4),
+        ExpConf(ts_dataset, "stenotype-7b-a6d445d-ckpt1000", experiment.approach4),
     ]
 
     if args.show_configs:
@@ -141,9 +137,7 @@ def main():
             configs = [configs[int(i)] for i in args.infer]
 
         # Make sure results don't already exist
-        results_paths = [
-            util.get_results_name(c.model_name, args.results_directory) for c in configs
-        ]
+        results_paths = [c.infer_output_path(args.results_directory) for c in configs]
         results_exists = [path for path in results_paths if Path(path).exists()]
         for p in results_exists:
             print(f"error: output {p} already exists, please delete or rename!")

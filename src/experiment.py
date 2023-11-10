@@ -1,5 +1,6 @@
 from datasets import Dataset, IterableDataset
-from typing import Any, Callable
+from pathlib import Path
+from typing import Any, Callable, Optional
 import argparse
 import functools
 import random
@@ -7,6 +8,66 @@ import random
 from model import Model, Tokenizer
 from util import transform
 import util
+
+
+class DatasetConfig:
+    dataset: Optional[Dataset | IterableDataset] = None
+
+    def __init__(
+        self,
+        name: str,
+        dataset_path: str,
+        split: Optional[str] = None,
+        revision: Optional[str] = None,
+        num_proc: Optional[int] = None,
+        streaming: Optional[bool] = None,
+    ):
+        self.name = name
+        self.dataset_path = dataset_path
+        self.split = split
+        self.revision = revision
+        self.num_proc = num_proc
+        self.streaming = streaming
+
+    def get(self):
+        if not self.dataset:
+            self.dataset = util.load_dataset(
+                self.dataset_path,
+                split=self.split,
+                revision=self.revision,
+                num_proc=self.num_proc,
+                streaming=self.streaming,
+            )
+        return self.dataset
+
+
+class ExperimentConfig:
+    def __init__(
+        self,
+        dataset_config: DatasetConfig,
+        model_name: str,
+        approach: Callable[[Model, int, str], list[str]],
+    ):
+        self.dataset_config = dataset_config
+        self.model_name = model_name
+        self.approach = approach
+
+    def _output_path(self, results_directory: str, subdir: str) -> str:
+        output_dir = Path(results_directory, subdir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        filename = (
+            f"{self.model_name}_{self.approach.__name__}_{self.dataset_config.name}"
+        )
+        return str(Path(output_dir, filename).with_suffix(".parquet"))
+
+    def infer_output_path(self, results_directory: str) -> str:
+        return self._output_path(results_directory, "0_after_infer")
+
+    def eval_output_path(self, results_directory: str) -> str:
+        return self._output_path(results_directory, "1_after_eval")
+
+    def summary_output_path(self, results_directory: str) -> str:
+        return self._output_path(results_directory, "2_after_summary")
 
 
 def approach1(model: Model, num_completions: int, original: str) -> list[str]:
@@ -96,18 +157,6 @@ def approach4(model: Model, num_completions: int, original: str) -> list[str]:
         counter += 1
 
     return final_outputs
-
-
-class ExperimentConfig:
-    def __init__(
-        self,
-        dataset: Dataset | IterableDataset,
-        model_name: str,
-        approach: Callable[[Model, int, str], list[str]],
-    ):
-        self.dataset = dataset
-        self.model_name = model_name
-        self.approach = approach
 
 
 def _add_column_without_types(example: dict[str, Any]) -> dict[str, Any]:
@@ -200,12 +249,12 @@ def _run_inference(
 def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
     # For now, the output name is {model_name}.parquet. Later we might have
     # different experiments for a model, so we will need different names.
-    results_path = util.get_results_name(config.model_name, args.results_directory)
+    results_path = config.infer_output_path(args.result_directory)
 
     model_path = util.get_model_path(config.model_name, args.models_directory)
     model = Model(model_path)
     tokenizer = Tokenizer(model_path)
-    dataset = config.dataset
+    dataset = config.dataset_config.get()
 
     num_examples = len(dataset)
     dataset = _run_inference(

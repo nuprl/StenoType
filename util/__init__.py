@@ -89,10 +89,6 @@ def write_jsonl(
             f.write(json.dumps(item, cls=encoder) + "\n")
 
 
-def get_results_name(model_name: str, results_directory: str) -> str:
-    return str(Path(results_directory, model_name).with_suffix(".parquet"))
-
-
 def get_model_path(model_name: str, models_directory: str) -> str:
     return str(Path(models_directory, model_name))
 

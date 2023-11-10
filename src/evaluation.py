@@ -99,9 +99,7 @@ def _evaluate_completion(
 
 
 def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
-    # For now, the output name is {model_name}.parquet. Later we might have
-    # different experiments for a model, so we will need different names.
-    results_path = util.get_results_name(config.model_name, args.results_directory)
+    results_path = config.infer_output_path(args.result_directory)
     dataset = util.load_dataset(results_path)
 
     model_path = util.get_model_path(config.model_name, args.models_directory)
@@ -135,7 +133,8 @@ def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
         )
 
     # Save dataset
-    util.save_dataset(dataset, results_path, args.workers)
+    eval_output = config.eval_output_path(args.result_directory)
+    util.save_dataset(dataset, eval_output, args.workers)
     print()
 
 
@@ -200,7 +199,7 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
 def _summarize_dataset(
     config: ExperimentConfig, args: argparse.Namespace
 ) -> Optional[dict[str, Any]]:
-    results_path = util.get_results_name(config.model_name, args.results_directory)
+    results_path = config.eval_output_path(args.result_directory)
     dataset = util.load_dataset(results_path)
 
     # If we haven't processed this, print an error
@@ -212,7 +211,8 @@ def _summarize_dataset(
     dataset = dataset.map(
         _summarize_example, num_proc=args.workers, desc="Summarizing results"
     )
-    util.save_dataset(dataset, results_path, args.workers)
+    summary_output = config.summary_output_path(args.result_directory)
+    util.save_dataset(dataset, summary_output, args.workers)
 
     # Summarize dataset
     total_completions = len([r for d in dataset for r in d["results"]])
