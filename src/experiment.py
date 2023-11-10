@@ -113,7 +113,7 @@ class ExperimentConfig:
 def _add_column_without_types(example: dict[str, Any]) -> dict[str, Any]:
     # Delete type annotations and definitions
     content = example["content"]
-    stripped = transform.delete_types(content)
+    stripped = transform.delete_types(content, delete_comments=True)
     example["content_without_types"] = stripped
     return example
 

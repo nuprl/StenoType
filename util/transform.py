@@ -257,42 +257,48 @@ def is_child_of_export(start_node: Node) -> bool:
 
 
 def extract_type_definition_nodes(
-    content: str, include_classes: bool = False
+    content: str, include_classes: bool = False, delete_comments: bool = False
 ) -> list[Node]:
     """
     Returns a list of nodes, representing (non-class) type definitions from the
     given string.
     """
-    classes_query = (
-        """
-                      (class_declaration) @type
-                      (export_statement
-                          declaration: (class_declaration)) @type
-                    """
-        if include_classes
-        else ""
-    )
-    captures = run_query(
-        content,
-        f"""
-        [
-            (interface_declaration) @type
-            (type_alias_declaration) @type
-            (export_statement
-                declaration: (interface_declaration)) @type
-            (export_statement
-                declaration: (type_alias_declaration)) @type
-            {classes_query}
-        ]
-        """,
-    )
+    classes_query = """
+        (class_declaration) @type
+        (export_statement
+            declaration: (class_declaration)) @type
+    """
+    type_definitions_query = f"""
+    [
+        (interface_declaration) @type
+        (type_alias_declaration) @type
+        (export_statement
+            declaration: (interface_declaration)) @type
+        (export_statement
+            declaration: (type_alias_declaration)) @type
+        {classes_query if include_classes else ""}
+    ]
+    """
+    captures = run_query(content, type_definitions_query)
     nodes = [c[0] for c in captures if not is_child_of_export(c[0])]
+
+    # If deleting comments that directly precede type definition nodes,
+    # check the previous (named) sibling of each type definition node
+    if delete_comments:
+        res = []
+        for n in nodes:
+            prev_sibling = n.prev_named_sibling
+            if prev_sibling and prev_sibling.type == "comment":
+                res.append(prev_sibling)
+            res.append(n)
+        return res
+
     return nodes
 
 
-def delete_type_definitions(content: str) -> str:
+def delete_type_definitions(content: str, delete_comments: bool = False) -> str:
     """Deletes (non-class) type definitions from the given string."""
-    nodes = extract_type_definition_nodes(content)
+    nodes = extract_type_definition_nodes(content, delete_comments=delete_comments)
     return delete_nodes(content, nodes)
 
 
@@ -361,9 +367,9 @@ def delete_type_assertions(content: str) -> str:
     return delete_type_assertions(content)
 
 
-def delete_types(content: str) -> str:
+def delete_types(content: str, delete_comments: bool = False) -> str:
     """Deletes type annotations and type definitions from the given string."""
-    content = delete_type_definitions(content)
+    content = delete_type_definitions(content, delete_comments)
     content = delete_type_annotations(content)
     content = delete_type_assertions(content)
     return content
