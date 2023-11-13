@@ -99,8 +99,7 @@ class Model:
         return self._generate(prompts, max_tokens=self.max_fim_tokens)
 
     def infill(self, prefix: str, suffix: str) -> str:
-        prompt = f"{FIM_PREFIX}{prefix}{FIM_SUFFIX}{suffix}{FIM_MIDDLE}"
-        return self._generate([prompt], max_tokens=self.max_fim_tokens)[0]
+        return self.infill_batch([(prefix, suffix)])[0]
 
     def edit_batch(self, triples: list[tuple[str, str]] | list[tuple[str, str, str]]):
         # prefix may be missing, so we unpack as a list and treat it as an empty string
@@ -113,8 +112,7 @@ class Model:
         return self._generate(prompts)
 
     def edit(self, code: str, instruction: str, prefix: str = "") -> str:
-        prompt = f"{COMMIT_BEFORE}{code}{COMMIT_MSG}{instruction}{COMMIT_AFTER}{prefix}"
-        return self._generate([prompt])[0]
+        return self.edit_batch([(code, instruction, prefix)])[0]
 
     def complete_batch(
         self, prompts: list[str], stop: Optional[list[str]] = None
@@ -125,5 +123,4 @@ class Model:
         ]
 
     def complete(self, prompt: str, stop: Optional[list[str]] = None) -> str:
-        completion = self._generate([prompt], stop=stop)[0]
-        return f"{prompt}{completion}"
+        return self.complete_batch([prompt], stop=stop)[0]
