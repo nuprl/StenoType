@@ -167,47 +167,33 @@ def _add_column_without_types(example: dict[str, Any]) -> dict[str, Any]:
     return example
 
 
-def _prepare_dataset(
-    dataset: Dataset | IterableDataset, model: Model, tokenizer: Tokenizer, workers: int
-) -> Dataset | IterableDataset:
-    # Remove type annotations and definitions, add as new column
-    dataset = dataset.map(
-        _add_column_without_types, num_proc=workers, desc="Removing types"
-    )
-
-    # Remove empty rows (since removing types may end up removing everything)
-    dataset = dataset.filter(
-        lambda e: not transform.is_empty(e["content_without_types"]),
-        num_proc=workers,
-        desc="Removing empty examples",
-    )
-
-    # Remove examples that are too long
-    input_size = model.INPUT_SIZE
-    dataset = dataset.filter(
-        lambda e: len(tokenizer(e["content_without_types"])) < input_size,
-        num_proc=workers,
-        desc="Removing large examples",
-    )
-
-    return dataset
-
-
 def _infer_on_example(
     example: dict[str, Any],
     model: Model,
+    tokenizer: Tokenizer,
     approach: Callable[[Model, int, str], list[str]],
     num_completions: int,
 ) -> dict[str, Any]:
-    # For now, we're assuming TypeScript with type annotations and definitions removed.
     stripped = example["content_without_types"]
 
-    # Run type inference, depending on the approach we're using
-    final_outputs = approach(model, num_completions, stripped)
+    input_size = model.INPUT_SIZE
+    if len(tokenizer(stripped)) >= input_size:
+        # If example is too long, skip
+        final_outputs = [""] * num_completions
+    else:
+        # Run type inference, depending on the approach we're using
+        final_outputs = approach(model, num_completions, stripped)
 
     results = [{"output": o, "error": o == ""} for o in final_outputs]
     example["results"] = results
 
+    return example
+
+
+def _add_name_column(example: dict[str, Any]) -> dict[str, Any]:
+    repo_name = example["max_stars_repo_name"]
+    repo_path = example["max_stars_repo_path"]
+    example["name"] = f"{repo_name}/{repo_path}"
     return example
 
 
@@ -219,28 +205,33 @@ def _run_inference(
     num_completions: int,
     workers: int,
 ) -> Dataset | IterableDataset:
-    dataset = _prepare_dataset(dataset, model, tokenizer, workers)
+    # Remove type annotations and definitions, add as new column
+    dataset = dataset.map(
+        _add_column_without_types, num_proc=workers, desc="Removing types"
+    )
 
     with util.timer():
         dataset = dataset.map(
             functools.partial(
                 _infer_on_example,
                 model=model,
+                tokenizer=tokenizer,
                 approach=approach,
                 num_completions=num_completions,
             ),
             desc="Inferring types",
         )
 
+    # Add "name" column if dataset is from the Stack
+    if (
+        "max_stars_repo_name" in dataset.column_names
+        and "max_stars_repo_name" in dataset.column_names
+    ):
+        dataset = dataset.map(_add_name_column, num_proc=workers)
+
+    # Only keep the minimum necessary columns
     dataset = dataset.select_columns(
-        [
-            "hexsha",
-            "max_stars_repo_path",
-            "max_stars_repo_name",
-            "content",
-            "content_without_types",
-            "results",
-        ]
+        ["name", "content", "content_without_types", "results"]
     )
 
     return dataset
