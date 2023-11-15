@@ -99,7 +99,7 @@ def _evaluate_completion(
 
 
 def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
-    results_path = config.infer_output_path(args.result_directory)
+    results_path = config.infer_output_path(args.results_directory)
     dataset = util.load_dataset(results_path)
 
     model_path = util.get_model_path(config.model_name, args.models_directory)
@@ -133,7 +133,7 @@ def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
         )
 
     # Save dataset
-    eval_output = config.eval_output_path(args.result_directory)
+    eval_output = config.eval_output_path(args.results_directory)
     util.save_dataset(dataset, eval_output, args.workers)
     print()
 
@@ -199,7 +199,7 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
 def _summarize_dataset(
     config: ExperimentConfig, args: argparse.Namespace
 ) -> Optional[dict[str, Any]]:
-    results_path = config.eval_output_path(args.result_directory)
+    results_path = config.eval_output_path(args.results_directory)
     dataset = util.load_dataset(results_path)
 
     # If we haven't processed this, print an error
@@ -211,7 +211,7 @@ def _summarize_dataset(
     dataset = dataset.map(
         _summarize_example, num_proc=args.workers, desc="Summarizing results"
     )
-    summary_output = config.summary_output_path(args.result_directory)
+    summary_output = config.summary_output_path(args.results_directory)
     util.save_dataset(dataset, summary_output, args.workers)
 
     # Summarize dataset

@@ -240,7 +240,7 @@ def _run_inference(
 def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
     # For now, the output name is {model_name}.parquet. Later we might have
     # different experiments for a model, so we will need different names.
-    results_path = config.infer_output_path(args.result_directory)
+    results_path = config.infer_output_path(args.results_directory)
 
     model_path = util.get_model_path(config.model_name, args.models_directory)
     model = Model(model_path)
@@ -251,13 +251,11 @@ def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
     dataset = _run_inference(
         dataset, model, tokenizer, config.approach, args.num_completions, args.workers
     )
-    num_removed = num_examples - len(dataset)
 
     # Save results to disk
     util.save_dataset(dataset, results_path, args.workers)
 
     print("Number of examples in original:", num_examples)
-    print("Number of examples skipped:", num_removed)
 
     # Cleanup: destroy Model/vLLM so we can start the next experiment
     del model
