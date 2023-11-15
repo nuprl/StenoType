@@ -70,46 +70,88 @@ class ExperimentConfig:
         return self._output_path(results_directory, "2_after_summary")
 
 
-def approach1(model: Model, num_completions: int, original: str) -> list[str]:
+def approach1(
+    model: Model, num_completions: int, original: str
+) -> tuple[list[str], list[list[dict]]]:
     """
     One-shot: use the instruction "Add type annotations and interfaces".
+
+    Returns a pair:
+        - list of outputs (strings)
+        - list of intermediate results (each intermediate result is a list of
+          dictionaries with "input" and "prompt" keys)
     """
-    prompt = (original, "Add type annotations and interfaces")
-    prompts = [prompt] * num_completions
-    return model.edit_batch(prompts)
+    prompts = [
+        (original, "Add type annotations and interfaces")
+        for _ in range(num_completions)
+    ]
+    # Add the prompts to the intermediate results (each item is a list of steps)
+    intermediate = [[{"input": p[0], "prompt": p[1]}] for p in prompts]
+    outputs = model.edit_batch(prompts)
+    return outputs, intermediate
 
 
-def approach2(model: Model, num_completions: int, original: str) -> list[str]:
+def approach2(
+    model: Model, num_completions: int, original: str
+) -> tuple[list[str], list[list[dict]]]:
     """
     Two steps: generate num_completions completions for the first instruction,
     then one completion for each of the results.
     Instructions:
       1. Add type aliases and interfaces.
       2. Add type annotations.
+
+    Returns a pair:
+        - list of outputs (strings)
+        - list of intermediate results (each intermediate result is a list of
+          dictionaries with "input" and "prompt" keys)
     """
-    prompt = (original, "Add type aliases and interfaces")
-    prompts = [prompt] * num_completions
+    prompts = [
+        (original, "Add type aliases and interfaces") for _ in range(num_completions)
+    ]
+    # Add the prompts to the intermediate results (each item is a list of steps)
+    intermediate = [[{"input": p[0], "prompt": p[1]}] for p in prompts]
     outputs = model.edit_batch(prompts)
+
     prompts = [(o, "Add type annotations") for o in outputs]
-    return model.edit_batch(prompts)
+    # Append the last input/prompt to each intermediate result
+    for i, p in zip(intermediate, prompts):
+        i.append({"input": p[0], "prompt": p[1]})
+    outputs = model.edit_batch(prompts)
+    return outputs, intermediate
 
 
-def approach3(model: Model, num_completions: int, original: str) -> list[str]:
+def approach3(
+    model: Model, num_completions: int, original: str
+) -> tuple[list[str], list[list[dict]]]:
     """
     Two steps: generate num_completions completions for the first instruction,
     then one completion for each of the results.
     Instructions:
       1. Add type annotations.
       2. Add type aliases and interfaces.
+
+    Returns a pair:
+        - list of outputs (strings)
+        - list of intermediate results (each intermediate result is a list of
+          dictionaries with "input" and "prompt" keys)
     """
-    prompt = (original, "Add type annotations")
-    prompts = [prompt] * num_completions
+    prompts = [(original, "Add type annotations") for _ in range(num_completions)]
+    # Add the prompts to the intermediate results (each item is a list of steps)
+    intermediate = [[{"input": p[0], "prompt": p[1]}] for p in prompts]
     outputs = model.edit_batch(prompts)
+
     prompts = [(o, "Add type aliases and interfaces") for o in outputs]
-    return model.edit_batch(prompts)
+    # Append the last input/prompt to each intermediate result
+    for i, p in zip(intermediate, prompts):
+        i.append({"input": p[0], "prompt": p[1]})
+    outputs = model.edit_batch(prompts)
+    return outputs, intermediate
 
 
-def approach4(model: Model, num_completions: int, original: str) -> list[str]:
+def approach4(
+    model: Model, num_completions: int, original: str
+) -> tuple[list[str], list[list[dict]]]:
     """
     Multiple steps:
       1. Generate num_completions completions for the instruction:
@@ -118,45 +160,62 @@ def approach4(model: Model, num_completions: int, original: str) -> list[str]:
          type annotations, generate a definition for the undefined type T, with
          the instruction:
            "Add a type alias or interface for T"
+
+    Returns a pair:
+        - list of outputs (strings)
+        - list of intermediate results (each intermediate result is a list of
+          dictionaries with "input" and "prompt" keys)
     """
     MAX_TRIES = 5
 
     # First generate num_completions completions to add type annotations
-    prompt = (original, "Add type annotations")
-    prompts = [prompt] * num_completions
+    prompts = [(original, "Add type annotations") for _ in range(num_completions)]
+    # Add the prompts to the intermediate results (each item is a list of steps)
+    intermediate = [[{"input": p[0], "prompt": p[1]}] for p in prompts]
     outputs = model.edit_batch(prompts)
 
     # Now loop to add type definitions
-    final_outputs = []
+    final_outputs, final_intermediate = [], []
     counter = 1
     while True:
-        # Get list of undefined types for each output
-        outputs_and_undef = [
-            (o, transform.get_undefined_type_names(o)) for o in outputs
+        # For each output, make a triple:
+        # (output, undefined types, intermediate results)
+        output_triples: list[tuple[str, list[str], list[dict]]] = [
+            (o, transform.get_undefined_type_names(o), i)
+            for o, i in zip(outputs, intermediate)
         ]
 
         # Partition the outputs on whether they have undefined types
-        done, todo = util.partition_list(lambda p: not p[1], outputs_and_undef)
+        # done and todo have the same type as output_triples
+        done, todo = util.partition_list(lambda p: not p[1], output_triples)
 
-        # Append the code outputs (not the types) to final_outputs
-        final_outputs += [d for d, _ in done]
+        # Extract the outputs and intermediate results from done,
+        # and append to return variables
+        final_outputs += [o for o, _, _ in done]
+        final_intermediate += [i for _, _, i in done]
 
         # Exit the loop if there's nothing left or we exceeded MAX_TRIES
         if not todo or counter > MAX_TRIES:
-            # Append the not-completed outputs to final_outputs
-            final_outputs += [t for t, _ in todo]
+            # Extract the outputs and intermediate results from todo,
+            # and append to return variables
+            final_outputs += [o for o, _, _ in todo]
+            final_intermediate += [i for _, _, i in todo]
             break
 
         # For each completion in todo, pick one of the undefined types
         # and construct a prompt
         prompts = [
             (code, f"Add a type alias or interface for {random.choice(types)}")
-            for code, types in todo
+            for code, types, _ in todo
         ]
+        # Append the last input/prompt to each intermediate result
+        intermediate = [i for _, _, i in todo]
+        for i, p in zip(intermediate, prompts):
+            i.append({"input": p[0], "prompt": p[1]})
         outputs = model.edit_batch(prompts)
         counter += 1
 
-    return final_outputs
+    return final_outputs, final_intermediate
 
 
 def _add_column_without_types(example: dict[str, Any]) -> dict[str, Any]:
@@ -171,7 +230,7 @@ def _infer_on_example(
     example: dict[str, Any],
     model: Model,
     tokenizer: Tokenizer,
-    approach: Callable[[Model, int, str], list[str]],
+    approach: Callable[[Model, int, str], tuple[list[str], list[list[dict]]]],
     num_completions: int,
 ) -> dict[str, Any]:
     stripped = example["content_without_types"]
@@ -179,12 +238,16 @@ def _infer_on_example(
     input_size = model.INPUT_SIZE
     if len(tokenizer(stripped)) >= input_size:
         # If example is too long, skip
-        final_outputs = [""] * num_completions
+        outputs = [""] * num_completions
+        intermediates = [[{"input": "", "prompt": ""}]] * num_completions
     else:
         # Run type inference, depending on the approach we're using
-        final_outputs = approach(model, num_completions, stripped)
+        outputs, intermediates = approach(model, num_completions, stripped)
 
-    results = [{"output": o, "error": o == ""} for o in final_outputs]
+    results = [
+        {"output": o, "error": o == "", "steps": i}
+        for o, i in zip(outputs, intermediates)
+    ]
     example["results"] = results
 
     return example
