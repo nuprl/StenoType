@@ -94,41 +94,44 @@ def parse_args() -> argparse.Namespace:
 def main():
     # Don't cache datasets
     datasets.disable_caching()
-
     args = parse_args()
+    configs = []
 
+    # TypeScript datasets
     ts_dataset = DatasetConf(
         name="ts", dataset_path="../datasets/stenotype-eval-dataset-subset"
     )
-    # TODO: js dataset
+    configs += [
+        ExpConf("starcoderbase-1b", experiment.approach1, ts_dataset),
+        ExpConf("starcoderbase-7b", experiment.approach1, ts_dataset),
+        ExpConf("stenotype-1b-75ce914-ckpt100", experiment.approach1, ts_dataset),
+        ExpConf("stenotype-1b-54d5802-ckpt100", experiment.approach2, ts_dataset),
+        ExpConf("stenotype-1b-2b77ede-ckpt100", experiment.approach3, ts_dataset),
+        ExpConf("starcoderbase-1b", experiment.approach4, ts_dataset),
+        ExpConf("stenotype-1b-ef65cb9-ckpt1000", experiment.approach4, ts_dataset),
+        ExpConf("starcoderbase-7b", experiment.approach4, ts_dataset),
+        ExpConf("stenotype-7b-a6d445d-ckpt1000", experiment.approach4, ts_dataset),
+    ]
 
-    configs = [
-        ExpConf(ts_dataset, "starcoderbase-1b", experiment.approach1),
-        ExpConf(ts_dataset, "starcoderbase-7b", experiment.approach1),
-        ExpConf(ts_dataset, "stenotype-1b-75ce914-ckpt100", experiment.approach1),
-        ExpConf(ts_dataset, "stenotype-1b-54d5802-ckpt100", experiment.approach2),
-        ExpConf(ts_dataset, "stenotype-1b-2b77ede-ckpt100", experiment.approach3),
-        # ExpConf(ts_dataset, "stenotype-1b-7904b4a-ckpt200", experiment.approach1),
-        # ExpConf(ts_dataset, "stenotype-1b-7904b4a-ckpt600", experiment.approach1),
-        # ExpConf(ts_dataset, "stenotype-1b-7904b4a-ckpt1000", experiment.approach1),
-        # ExpConf(ts_dataset, "stenotype-1b-1753dc0-ckpt200", experiment.approach3),
-        # ExpConf(ts_dataset, "stenotype-1b-1753dc0-ckpt600", experiment.approach3),
-        # ExpConf(ts_dataset, "stenotype-1b-1753dc0-ckpt1000", experiment.approach3),
-        ExpConf(ts_dataset, "starcoderbase-1b", experiment.approach4),
-        # ExpConf(ts_dataset, "stenotype-1b-ef65cb9-ckpt250", experiment.approach4),
-        # ExpConf(ts_dataset, "stenotype-1b-ef65cb9-ckpt500", experiment.approach4),
-        # ExpConf(ts_dataset, "stenotype-1b-ef65cb9-ckpt750", experiment.approach4),
-        ExpConf(ts_dataset, "stenotype-1b-ef65cb9-ckpt1000", experiment.approach4),
-        ExpConf(ts_dataset, "starcoderbase-7b", experiment.approach4),
-        # ExpConf(ts_dataset, "stenotype-7b-a6d445d-ckpt250", experiment.approach4),
-        # ExpConf(ts_dataset, "stenotype-7b-a6d445d-ckpt500", experiment.approach4),
-        # ExpConf(ts_dataset, "stenotype-7b-a6d445d-ckpt750", experiment.approach4),
-        ExpConf(ts_dataset, "stenotype-7b-a6d445d-ckpt1000", experiment.approach4),
+    # JavaScript datasets
+    js_dataset = DatasetConf(
+        name="js", dataset_path="../datasets/typeweaver-bundle-filtered-subset"
+    )
+    configs += [
+        ExpConf("starcoderbase-1b", experiment.approach1, js_dataset),
+        ExpConf("starcoderbase-7b", experiment.approach1, js_dataset),
+        ExpConf("stenotype-1b-75ce914-ckpt100", experiment.approach1, js_dataset),
+        ExpConf("stenotype-1b-54d5802-ckpt100", experiment.approach2, js_dataset),
+        ExpConf("stenotype-1b-2b77ede-ckpt100", experiment.approach3, js_dataset),
+        ExpConf("starcoderbase-1b", experiment.approach4, js_dataset),
+        ExpConf("stenotype-1b-ef65cb9-ckpt1000", experiment.approach4, js_dataset),
+        ExpConf("starcoderbase-7b", experiment.approach4, js_dataset),
+        ExpConf("stenotype-7b-a6d445d-ckpt1000", experiment.approach4, js_dataset),
     ]
 
     if args.show_configs:
         for i, c in enumerate(configs):
-            print(i, c.model_name, c.approach.__name__)
+            print(i, c.model_name, c.approach.__name__, c.dataset_config.name)
         exit(0)
 
     if args.infer is not None:

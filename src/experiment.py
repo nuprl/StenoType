@@ -44,9 +44,9 @@ class DatasetConfig:
 class ExperimentConfig:
     def __init__(
         self,
-        dataset_config: DatasetConfig,
         model_name: str,
         approach: Callable[[Model, int, str], list[str]],
+        dataset_config: DatasetConfig,
     ):
         self.dataset_config = dataset_config
         self.model_name = model_name
