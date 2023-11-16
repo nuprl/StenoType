@@ -5,7 +5,7 @@ import argparse
 import functools
 import random
 
-from model import Model, Tokenizer
+from model import Model
 from util import transform
 import util
 
@@ -229,20 +229,14 @@ def _add_column_without_types(example: dict[str, Any]) -> dict[str, Any]:
 def _infer_on_example(
     example: dict[str, Any],
     model: Model,
-    tokenizer: Tokenizer,
     approach: Callable[[Model, int, str], tuple[list[str], list[list[dict]]]],
     num_completions: int,
 ) -> dict[str, Any]:
     stripped = example["content_without_types"]
 
-    input_size = model.INPUT_SIZE
-    if len(tokenizer(stripped)) >= input_size:
-        # If example is too long, skip
-        outputs = [""] * num_completions
-        intermediates = [[{"input": "", "prompt": ""}]] * num_completions
-    else:
-        # Run type inference, depending on the approach we're using
-        outputs, intermediates = approach(model, num_completions, stripped)
+    # Run type inference, depending on the approach we're using
+    # If the input is too long, the output will be empty and we'll consider that an error
+    outputs, intermediates = approach(model, num_completions, stripped)
 
     results = [
         {"output": o, "error": o == "", "steps": i}
@@ -263,7 +257,6 @@ def _add_name_column(example: dict[str, Any]) -> dict[str, Any]:
 def _run_inference(
     dataset: Dataset | IterableDataset,
     model: Model,
-    tokenizer: Tokenizer,
     approach: Callable[[Model, int, str], list[str]],
     num_completions: int,
     workers: int,
@@ -278,7 +271,6 @@ def _run_inference(
             functools.partial(
                 _infer_on_example,
                 model=model,
-                tokenizer=tokenizer,
                 approach=approach,
                 num_completions=num_completions,
             ),
@@ -307,12 +299,11 @@ def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
 
     model_path = util.get_model_path(config.model_name, args.models_directory)
     model = Model(model_path)
-    tokenizer = Tokenizer(model_path)
     dataset = config.dataset_config.get()
 
     num_examples = len(dataset)
     dataset = _run_inference(
-        dataset, model, tokenizer, config.approach, args.num_completions, args.workers
+        dataset, model, config.approach, args.num_completions, args.workers
     )
 
     # Save results to disk
