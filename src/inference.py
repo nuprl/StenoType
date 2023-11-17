@@ -296,17 +296,13 @@ def run_inference(config: Config, args: argparse.Namespace):
     results_path = config.infer_output_path(args.results_directory)
 
     model_path = util.get_model_path(config.model_name, args.models_directory)
-    model = Model(model_path)
     dataset = config.dataset_config.get()
 
-    dataset = _run_inference(
-        dataset, model, config.approach, args.num_completions, args.workers
-    )
+    with Model(model_path) as model:
+        dataset = _run_inference(
+            dataset, model, config.approach, args.num_completions, args.workers
+        )
 
     # Save results to disk
     util.save_dataset(dataset, results_path, args.workers)
     print()
-
-    # Cleanup: destroy Model/vLLM so we can start the next inference run
-    del model
-    util.empty_gpu()

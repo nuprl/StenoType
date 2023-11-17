@@ -4,13 +4,10 @@ from datetime import datetime
 from datasets import Dataset, IterableDataset
 from pathlib import Path
 from typing import Any, Callable, Generator, Optional, Type
-from vllm.model_executor.parallel_utils.parallel_state import destroy_model_parallel
 import datasets
-import gc
 import json
 import numpy as np
 import os
-import torch
 
 ROOT_DIR = Path(Path(__file__).parent).parent
 
@@ -115,16 +112,6 @@ def partition_list(predicate: Callable[[Any], bool], list: list) -> tuple[list, 
             no.append(e)
 
     return yes, no
-
-
-def empty_gpu():
-    """
-    Flushes GPU so another model can be loaded.
-    Note: make sure the model is deleted before calling this, so GC can run!
-    """
-    destroy_model_parallel()
-    gc.collect()
-    torch.cuda.empty_cache()
 
 
 def mean_or_default(list: list, default: Optional[float] = None) -> Optional[float]:

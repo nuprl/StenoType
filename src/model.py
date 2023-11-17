@@ -67,6 +67,29 @@ class Model:
             dtype="bfloat16" if torch.cuda.is_bf16_supported() else "float16",
         )
 
+    def _unload(self):
+        """
+        Remove the model from the GPU so we can load a different model. Using the
+        model after calling _unload() is an error. In general, the model should
+        be used with a context manager (with statement).
+        """
+        from vllm.model_executor.parallel_utils.parallel_state import (
+            destroy_model_parallel,
+        )
+        import gc
+        import torch
+
+        del self.model
+        destroy_model_parallel()
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._unload()
+
     def _generate(self, prompts: list[str], **kwargs) -> list[str]:
         """
         Call the model to generate a completion. Use a default configuration
