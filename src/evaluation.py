@@ -12,7 +12,7 @@ import numpy as np
 import subprocess
 
 from model import Tokenizer
-from experiment import ExperimentConfig
+from inference import Config
 from util import ROOT_DIR, transform
 import util
 
@@ -98,7 +98,7 @@ def _evaluate_completion(
     return p_idx, c_idx, completion
 
 
-def run_evaluation(config: ExperimentConfig, args: argparse.Namespace):
+def run_evaluation(config: Config, args: argparse.Namespace):
     results_path = config.infer_output_path(args.results_directory)
     dataset = util.load_dataset(results_path)
 
@@ -197,7 +197,7 @@ def _summarize_example(example: dict[str, Any]) -> dict[str, Any]:
 
 
 def _summarize_dataset(
-    config: ExperimentConfig, args: argparse.Namespace
+    config: Config, args: argparse.Namespace
 ) -> Optional[dict[str, Any]]:
     results_path = config.eval_output_path(args.results_directory)
     dataset = util.load_dataset(results_path)
@@ -261,7 +261,7 @@ def _summarize_dataset(
     }
 
 
-def summarize_results(configs: list[ExperimentConfig], args: argparse.Namespace):
+def summarize_results(configs: list[Config], args: argparse.Namespace):
     summaries = []
     for config in configs:
         # Note: _summarize_dataset adds columns to the dataset and writes to disk

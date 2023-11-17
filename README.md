@@ -38,7 +38,6 @@ conda install nodejs=18.16.0
       [StarCoderBase-1b](https://huggingface.co/bigcode/starcoderbase-1b) and
       [StarCoderBase-7b](https://huggingface.co/bigcode/starcoderbase-7b).
 
-
    c. On the command line, log into Hugging Face with `huggingface-cli login`.
 
    d. In a directory of your choosing, e.g. `../models`,
@@ -53,14 +52,17 @@ conda install nodejs=18.16.0
 6. Now you can run the experiments:
 
 ```bash
-# To run inference (this is very slow):
-CUDA_VISIBLE_DEVICES=0 python src/main.py --infer --workers 10
+# See what configurations can be wron
+python src/main.py --show_configs
+
+# To run inference on config 0 (this is very slow):
+python src/main.py --infer 0
 
 # To evaluate (this is CPU-bound):
-python src/main.py --evaluate --workers 24
+python src/main.py --evaluate
 
 # To generate dataset-level summaries (this is pretty fast):
-python src/main.py --summarize --workers 10
+python src/main.py --summarize
 ```
 
 7. To browse the results, you can use the viewer. Type "help" for help.

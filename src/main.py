@@ -3,12 +3,12 @@ import argparse
 import datasets
 
 from evaluation import run_evaluation, summarize_results
-from experiment import (
+from inference import (
     DatasetConfig as DatasetConf,
-    ExperimentConfig as ExpConf,
-    run_experiment,
+    Config,
+    run_inference,
 )
-import experiment
+import inference
 import util
 
 
@@ -102,15 +102,15 @@ def main():
         name="ts", dataset_path="../datasets/stenotype-eval-dataset-subset"
     )
     configs += [
-        ExpConf("starcoderbase-1b", experiment.approach1, ts_dataset),
-        ExpConf("starcoderbase-7b", experiment.approach1, ts_dataset),
-        ExpConf("stenotype-1b-75ce914-ckpt100", experiment.approach1, ts_dataset),
-        ExpConf("stenotype-1b-54d5802-ckpt100", experiment.approach2, ts_dataset),
-        ExpConf("stenotype-1b-2b77ede-ckpt100", experiment.approach3, ts_dataset),
-        ExpConf("starcoderbase-1b", experiment.approach4, ts_dataset),
-        ExpConf("stenotype-1b-ef65cb9-ckpt1000", experiment.approach4, ts_dataset),
-        ExpConf("starcoderbase-7b", experiment.approach4, ts_dataset),
-        ExpConf("stenotype-7b-a6d445d-ckpt1000", experiment.approach4, ts_dataset),
+        Config("starcoderbase-1b", inference.approach1, ts_dataset),
+        Config("starcoderbase-7b", inference.approach1, ts_dataset),
+        Config("stenotype-1b-75ce914-ckpt100", inference.approach1, ts_dataset),
+        Config("stenotype-1b-54d5802-ckpt100", inference.approach2, ts_dataset),
+        Config("stenotype-1b-2b77ede-ckpt100", inference.approach3, ts_dataset),
+        Config("starcoderbase-1b", inference.approach4, ts_dataset),
+        Config("stenotype-1b-ef65cb9-ckpt1000", inference.approach4, ts_dataset),
+        Config("starcoderbase-7b", inference.approach4, ts_dataset),
+        Config("stenotype-7b-a6d445d-ckpt1000", inference.approach4, ts_dataset),
     ]
 
     # JavaScript datasets
@@ -118,15 +118,15 @@ def main():
         name="js", dataset_path="../datasets/typeweaver-bundle-filtered-subset"
     )
     configs += [
-        ExpConf("starcoderbase-1b", experiment.approach1, js_dataset),
-        ExpConf("starcoderbase-7b", experiment.approach1, js_dataset),
-        ExpConf("stenotype-1b-75ce914-ckpt100", experiment.approach1, js_dataset),
-        ExpConf("stenotype-1b-54d5802-ckpt100", experiment.approach2, js_dataset),
-        ExpConf("stenotype-1b-2b77ede-ckpt100", experiment.approach3, js_dataset),
-        ExpConf("starcoderbase-1b", experiment.approach4, js_dataset),
-        ExpConf("stenotype-1b-ef65cb9-ckpt1000", experiment.approach4, js_dataset),
-        ExpConf("starcoderbase-7b", experiment.approach4, js_dataset),
-        ExpConf("stenotype-7b-a6d445d-ckpt1000", experiment.approach4, js_dataset),
+        Config("starcoderbase-1b", inference.approach1, js_dataset),
+        Config("starcoderbase-7b", inference.approach1, js_dataset),
+        Config("stenotype-1b-75ce914-ckpt100", inference.approach1, js_dataset),
+        Config("stenotype-1b-54d5802-ckpt100", inference.approach2, js_dataset),
+        Config("stenotype-1b-2b77ede-ckpt100", inference.approach3, js_dataset),
+        Config("starcoderbase-1b", inference.approach4, js_dataset),
+        Config("stenotype-1b-ef65cb9-ckpt1000", inference.approach4, js_dataset),
+        Config("starcoderbase-7b", inference.approach4, js_dataset),
+        Config("stenotype-7b-a6d445d-ckpt1000", inference.approach4, js_dataset),
     ]
 
     if args.show_configs:
@@ -149,7 +149,7 @@ def main():
 
     for c in configs:
         if args.infer is not None:
-            run_experiment(c, args)
+            run_inference(c, args)
         if args.evaluate:
             run_evaluation(c, args)
 

@@ -41,7 +41,7 @@ class DatasetConfig:
         return self.dataset
 
 
-class ExperimentConfig:
+class Config:
     def __init__(
         self,
         model_name: str,
@@ -292,16 +292,13 @@ def _run_inference(
     return dataset
 
 
-def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
-    # For now, the output name is {model_name}.parquet. Later we might have
-    # different experiments for a model, so we will need different names.
+def run_inference(config: Config, args: argparse.Namespace):
     results_path = config.infer_output_path(args.results_directory)
 
     model_path = util.get_model_path(config.model_name, args.models_directory)
     model = Model(model_path)
     dataset = config.dataset_config.get()
 
-    num_examples = len(dataset)
     dataset = _run_inference(
         dataset, model, config.approach, args.num_completions, args.workers
     )
@@ -310,6 +307,6 @@ def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
     util.save_dataset(dataset, results_path, args.workers)
     print()
 
-    # Cleanup: destroy Model/vLLM so we can start the next experiment
+    # Cleanup: destroy Model/vLLM so we can start the next inference run
     del model
     util.empty_gpu()
