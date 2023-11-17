@@ -308,8 +308,7 @@ def run_experiment(config: ExperimentConfig, args: argparse.Namespace):
 
     # Save results to disk
     util.save_dataset(dataset, results_path, args.workers)
-
-    print("Number of examples in original:", num_examples)
+    print()
 
     # Cleanup: destroy Model/vLLM so we can start the next experiment
     del model
