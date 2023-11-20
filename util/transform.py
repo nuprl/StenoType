@@ -5,8 +5,10 @@ from typing import Optional
 
 from . import ROOT_DIR
 
-LANGUAGES_SO = str(Path(ROOT_DIR, "build", "languages.so").resolve())
-TREE_SITTER_TS = str(Path(ROOT_DIR, "tree-sitter-typescript", "typescript").resolve())
+LANGUAGES_SO = str(Path(ROOT_DIR, "util", "build", "languages.so").resolve())
+TREE_SITTER_TS = str(
+    Path(ROOT_DIR, "util", "tree-sitter-typescript", "typescript").resolve()
+)
 
 Language.build_library(LANGUAGES_SO, [TREE_SITTER_TS])
 

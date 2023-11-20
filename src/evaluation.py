@@ -1,4 +1,5 @@
-from concurrent.futures import ProcessPoolExecutor
+from concurrent import futures
+from functools import lru_cache
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from tqdm import tqdm
@@ -20,6 +21,7 @@ ACCURACY_METRIC = evaluate.load("accuracy")
 LEVENSHTEIN_THRESHOLD = 0.99
 
 
+@lru_cache(maxsize=32)
 def _accuracy(tokenizer: PreTrainedTokenizer, original: str, output: str) -> float:
     # Tokenize the original and output, and pad them to the same length
     # NumPy tensors may be more memory efficient than Python lists
@@ -35,10 +37,12 @@ def _accuracy(tokenizer: PreTrainedTokenizer, original: str, output: str) -> flo
     )["accuracy"]
 
 
+@lru_cache(maxsize=32)
 def _levenshtein(original: str, output: str) -> float:
     return Levenshtein.ratio(original, output)
 
 
+@lru_cache(maxsize=32)
 def _typescript(contents: str) -> Optional[tuple[int, int]]:
     args = ["node", str(Path(ROOT_DIR, "ts", "main.js").resolve())]
     result = subprocess.run(
@@ -106,12 +110,12 @@ def run_evaluation(config: Config, args: argparse.Namespace):
     tokenizer = Tokenizer(model_path)
 
     # If we already processed this, early return
-    if all(len(c.keys()) > 2 for r in dataset["results"] for c in r):
+    if all(len(c.keys()) > 3 for r in dataset["results"] for c in r):
         print(f"Skipping {results_path} because it was already processed\n")
         return
 
     # Set up a process pool so we can give each completion to a process
-    with ProcessPoolExecutor(max_workers=args.workers) as executor:
+    with futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
         fs = [
             executor.submit(
                 _evaluate_completion, p_idx, c_idx, d["content"], c, tokenizer
@@ -122,7 +126,12 @@ def run_evaluation(config: Config, args: argparse.Namespace):
 
         # We can't update the dataset directly, so save the results in a map
         results: list[dict[int, Any]] = [{} for _ in range(len(dataset))]
-        for i, f in enumerate(tqdm(fs, desc="Evaluating results", miniters=1)):
+        for f in tqdm(
+            futures.as_completed(fs),
+            desc="Evaluating results",
+            total=len(fs),
+            miniters=1,
+        ):
             p_idx, c_idx, result = f.result()
             results[p_idx][c_idx] = result
 

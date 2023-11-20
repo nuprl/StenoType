@@ -278,7 +278,14 @@ def filter_typechecks(
             executor.submit(run_tsc, d["hexsha"], d["content"])
             for d in tqdm(to_typecheck, desc="Preparing workers")
         ]
-        for i, f in enumerate(tqdm(fs, desc="Type checking", miniters=1)):
+        for i, f in enumerate(
+            tqdm(
+                futures.as_completed(fs),
+                desc="Type checking",
+                total=len(fs),
+                miniters=1,
+            )
+        ):
             key, result = f.result()
             checkpoint[key] = result
             if (i + 1) % checkpoint_steps == 0:
