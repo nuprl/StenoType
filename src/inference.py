@@ -15,15 +15,22 @@ class DatasetConfig:
 
     def __init__(
         self,
-        name: str,
-        dataset_path: str,
+        short_name: str,
+        datasets_path: str,
+        dataset_name: str,
+        declarations_archive: Optional[str] = None,
         split: Optional[str] = None,
         revision: Optional[str] = None,
         num_proc: Optional[int] = None,
         streaming: Optional[bool] = None,
     ):
-        self.name = name
-        self.dataset_path = dataset_path
+        self.short_name = short_name
+        self.dataset_path = str(Path(datasets_path, dataset_name).resolve())
+        self.declarations_archive = (
+            str(Path(datasets_path, declarations_archive).resolve())
+            if declarations_archive
+            else None
+        )
         self.split = split
         self.revision = revision
         self.num_proc = num_proc
@@ -55,9 +62,7 @@ class Config:
     def _output_path(self, results_directory: str, subdir: str) -> str:
         output_dir = Path(results_directory, subdir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        filename = (
-            f"{self.model_name}_{self.approach.__name__}_{self.dataset_config.name}"
-        )
+        filename = f"{self.model_name}_{self.approach.__name__}_{self.dataset_config.short_name}"
         return str(Path(output_dir, filename).with_suffix(".parquet"))
 
     def infer_output_path(self, results_directory: str) -> str:

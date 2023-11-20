@@ -1,6 +1,7 @@
 from pathlib import Path
 import argparse
 import datasets
+import os
 
 from evaluation import run_evaluation, summarize_results
 from inference import (
@@ -14,20 +15,32 @@ import util
 
 def parse_args() -> argparse.Namespace:
     cpu_count = util.cpu_count()
+    models_path = Path(util.ROOT_DIR, "..", "models").resolve()
+    datasets_path = Path(util.ROOT_DIR, "..", "datasets").resolve()
+    results_path = Path(util.ROOT_DIR, "results").resolve()
+    models_relpath = os.path.relpath(models_path)
+    datasets_relpath = os.path.relpath(datasets_path)
+    results_relpath = os.path.relpath(results_path)
 
     parser = argparse.ArgumentParser(description="Evaluation runner for StenoType")
 
     parser.add_argument(
         "--models_directory",
         type=str,
-        default="../models",
-        help="directory to load models from; defaults to ../models",
+        default=models_path,
+        help=f"directory to load models from; defaults to {models_relpath}",
+    )
+    parser.add_argument(
+        "--datasets_directory",
+        type=str,
+        default=datasets_path,
+        help=f"directory to load models from; defaults to {datasets_relpath}",
     )
     parser.add_argument(
         "--results_directory",
         type=str,
-        default="results",
-        help="directory to save results to; defaults to ./results",
+        default=results_path,
+        help=f"directory to save results to; defaults to {results_relpath}",
     )
     parser.add_argument(
         "--num_completions",
@@ -99,7 +112,9 @@ def main():
 
     # TypeScript datasets
     ts_dataset = DatasetConf(
-        name="ts", dataset_path="../datasets/stenotype-eval-dataset-subset"
+        short_name="ts",
+        datasets_path=args.datasets_directory,
+        dataset_name="stenotype-eval-dataset-subset",
     )
     configs += [
         Config("starcoderbase-1b", inference.approach1, ts_dataset),
@@ -115,7 +130,10 @@ def main():
 
     # JavaScript datasets
     js_dataset = DatasetConf(
-        name="js", dataset_path="../datasets/typeweaver-bundle-filtered-subset"
+        short_name="js",
+        datasets_path=args.datasets_directory,
+        dataset_name="typeweaver-bundle-filtered-subset",
+        declarations_archive="type_declarations.tar.gz",
     )
     configs += [
         Config("starcoderbase-1b", inference.approach1, js_dataset),
@@ -131,7 +149,7 @@ def main():
 
     if args.show_configs:
         for i, c in enumerate(configs):
-            print(i, c.model_name, c.approach.__name__, c.dataset_config.name)
+            print(i, c.model_name, c.approach.__name__, c.dataset_config.short_name)
         exit(0)
 
     if args.infer is not None:
