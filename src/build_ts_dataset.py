@@ -12,6 +12,7 @@ import functools
 import pickle
 import random
 import re
+import shutil
 import subprocess
 
 from util import transform
@@ -19,9 +20,9 @@ import util
 
 DEFAULT_CUTOFF = datetime(2021, 12, 31)
 
-TSC_PATH = Path(util.ROOT_DIR, "ts", "node_modules", ".bin", "tsc").resolve()
-if not Path(TSC_PATH).exists():
-    print("Could not find tsc: {}".format(TSC_PATH))
+TSC_PATH = shutil.which("tsc")
+if not TSC_PATH:
+    print("Could not find tsc")
     exit(1)
 
 

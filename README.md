@@ -22,8 +22,8 @@ git submodule update --init --recursive
 conda create -n gpu python=3.11
 conda activate gpu
 pip install -r requirements.txt
-conda install nodejs=18.16.0
-(cd ts && npm install && npx tsc)
+conda install -c conda-forge nodejs=20.8.1
+npm install -g --no-save typescript@5.2.2
 ```
 
 4. Download the

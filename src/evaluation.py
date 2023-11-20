@@ -2,23 +2,27 @@ from concurrent import futures
 from functools import lru_cache
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
+from tempfile import NamedTemporaryFile
 from tqdm import tqdm
 from transformers import PreTrainedTokenizer
 from typing import Any, Optional
 import argparse
 import evaluate
-import json
 import Levenshtein
 import numpy as np
+import shutil
 import subprocess
 
 from model import Tokenizer
 from inference import Config
-from util import ROOT_DIR, transform
 import util
 
 ACCURACY_METRIC = evaluate.load("accuracy")
 LEVENSHTEIN_THRESHOLD = 0.99
+TSC_PATH = shutil.which("tsc")
+if not TSC_PATH:
+    print("Could not find tsc")
+    exit(1)
 
 
 @lru_cache(maxsize=32)
@@ -43,17 +47,22 @@ def _levenshtein(original: str, output: str) -> float:
 
 
 @lru_cache(maxsize=32)
-def _typescript(contents: str) -> Optional[tuple[int, int]]:
-    args = ["node", str(Path(ROOT_DIR, "ts", "main.js").resolve())]
-    result = subprocess.run(
-        args, input=contents, stdout=PIPE, stderr=DEVNULL, encoding="utf-8"
-    )
-    if len(result.stdout) > 0:
-        data = json.loads(result.stdout)
-        if data:
-            return data["type_errors"], data["parse_errors"]
+def _tsc(contents: str) -> tuple[bool, str]:
+    # TODO: make this work with js
 
-    return None
+    with NamedTemporaryFile(mode="w", suffix=".ts", encoding="utf-8") as f:
+        # Save content to temp file
+        print(contents, file=f, end="", flush=True)
+        tmpfile = Path(f.name)
+
+        # Run tsc on temp file
+        # TODO: do we need --esModuleInterop --moduleResolution node --target es6 --lib dom
+        args = [str(TSC_PATH), "--noEmit", "--lib", "es2021", str(tmpfile)]
+        result = subprocess.run(
+            args, stdout=PIPE, stderr=DEVNULL, encoding="utf-8", cwd=tmpfile.parent
+        )
+
+        return result.returncode == 0, result.stdout
 
 
 def _evaluate_completion(
@@ -72,32 +81,9 @@ def _evaluate_completion(
     completion["accuracy"] = _accuracy(tokenizer.tokenizer, original, output)
     completion["levenshtein"] = _levenshtein(original, output)
 
-    res = _typescript(output)
-    if res:
-        te, pe = res
-        completion["type_errors"] = te
-        completion["parse_errors"] = pe
-        completion["type_checks"] = te == 0 and pe == 0
-
-        # Only compute untyped Levenshtein if the output type checks
-        if completion["type_checks"]:
-            original_untyped = transform.delete_types(original)
-            output_untyped = transform.delete_types(output)
-            untyped_levenshtein = _levenshtein(original_untyped, output_untyped)
-            completion["untyped_levenshtein"] = untyped_levenshtein
-
-            # To be correct, needs to type check, have untyped_levenshtein exceed
-            # a threshold, and the output needs to do something
-            completion["correct"] = (
-                untyped_levenshtein >= LEVENSHTEIN_THRESHOLD
-                and original_untyped != output
-            )
-        else:
-            completion["untyped_levenshtein"] = None
-            completion["correct"] = False
-    else:
-        completion["error"] = True
-        completion["correct"] = False
+    type_checks, tsc_logs = _tsc(output)
+    completion["type_checks"] = type_checks
+    completion["tsc_logs"] = tsc_logs
 
     return p_idx, c_idx, completion
 
