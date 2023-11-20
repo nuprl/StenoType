@@ -2,7 +2,6 @@ from concurrent import futures
 from functools import lru_cache
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
-from tempfile import NamedTemporaryFile
 from tqdm import tqdm
 from transformers import PreTrainedTokenizer
 from typing import Any, Optional
@@ -12,6 +11,8 @@ import Levenshtein
 import numpy as np
 import shutil
 import subprocess
+import tarfile
+import tempfile
 
 from model import Tokenizer
 from inference import Config
@@ -47,17 +48,25 @@ def _levenshtein(original: str, output: str) -> float:
 
 
 @lru_cache(maxsize=32)
-def _tsc(contents: str) -> tuple[bool, str]:
-    # TODO: make this work with js
+def _tsc(contents: str, tmpdir: Optional[str] = None) -> tuple[bool, str]:
 
-    with NamedTemporaryFile(mode="w", suffix=".ts", encoding="utf-8") as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".ts", dir=tmpdir, encoding="utf-8"
+    ) as f:
         # Save content to temp file
         print(contents, file=f, end="", flush=True)
         tmpfile = Path(f.name)
 
         # Run tsc on temp file
-        # TODO: do we need --esModuleInterop --moduleResolution node --target es6 --lib dom
-        args = [str(TSC_PATH), "--noEmit", "--lib", "es2021", str(tmpfile)]
+        # TODO: do we need --moduleResolution node --target es6 --lib dom
+        args = [
+            str(TSC_PATH),
+            "--noEmit",
+            "--esModuleInterop",
+            "--lib",
+            "es2021",
+            str(tmpfile),
+        ]
         result = subprocess.run(
             args, stdout=PIPE, stderr=DEVNULL, encoding="utf-8", cwd=tmpfile.parent
         )
@@ -71,6 +80,7 @@ def _evaluate_completion(
     original: str,
     completion: dict[str, Any],
     tokenizer: Tokenizer,
+    tmpdir: Optional[str] = None,
 ) -> tuple[int, int, dict[str, Any]]:
     if completion["error"]:
         return p_idx, c_idx, completion
@@ -81,7 +91,7 @@ def _evaluate_completion(
     completion["accuracy"] = _accuracy(tokenizer.tokenizer, original, output)
     completion["levenshtein"] = _levenshtein(original, output)
 
-    type_checks, tsc_logs = _tsc(output)
+    type_checks, tsc_logs = _tsc(output, tmpdir)
     completion["type_checks"] = type_checks
     completion["tsc_logs"] = tsc_logs
 
@@ -100,32 +110,45 @@ def run_evaluation(config: Config, args: argparse.Namespace):
         print(f"Skipping {results_path} because it was already processed\n")
         return
 
-    # Set up a process pool so we can give each completion to a process
-    with futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
-        fs = [
-            executor.submit(
-                _evaluate_completion, p_idx, c_idx, d["content"], c, tokenizer
+    # Type checking may require type declarations, so set up a temporary directory
+    # and extract the type declarations (if they exist)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        if config.dataset_config.type_decls:
+            with tarfile.open(config.dataset_config.type_decls) as tar:
+                tar.extractall(tmpdir)
+
+        # Set up a process pool so we can give each completion to a process
+        with futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
+            fs = [
+                executor.submit(
+                    _evaluate_completion,
+                    p_idx,
+                    c_idx,
+                    d["content"],
+                    c,
+                    tokenizer,
+                    tmpdir,
+                )
+                for p_idx, d in enumerate(dataset)
+                for c_idx, c in enumerate(d["results"])
+            ]
+
+            # We can't update the dataset directly, so save the results in a map
+            results: list[dict[int, Any]] = [{} for _ in range(len(dataset))]
+            for f in tqdm(
+                futures.as_completed(fs),
+                desc="Evaluating results",
+                total=len(fs),
+                miniters=1,
+            ):
+                p_idx, c_idx, result = f.result()
+                results[p_idx][c_idx] = result
+
+            # Now write the results to the dataset
+            results_list = [[r[k] for k in sorted(r.keys())] for r in results]
+            dataset = dataset.remove_columns("results").add_column(
+                name="results", column=results_list
             )
-            for p_idx, d in enumerate(dataset)
-            for c_idx, c in enumerate(d["results"])
-        ]
-
-        # We can't update the dataset directly, so save the results in a map
-        results: list[dict[int, Any]] = [{} for _ in range(len(dataset))]
-        for f in tqdm(
-            futures.as_completed(fs),
-            desc="Evaluating results",
-            total=len(fs),
-            miniters=1,
-        ):
-            p_idx, c_idx, result = f.result()
-            results[p_idx][c_idx] = result
-
-        # Now write the results to the dataset
-        results_list = [[r[k] for k in sorted(r.keys())] for r in results]
-        dataset = dataset.remove_columns("results").add_column(
-            name="results", column=results_list
-        )
 
     # Save dataset
     eval_output = config.eval_output_path(args.results_directory)

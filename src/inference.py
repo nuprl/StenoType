@@ -18,7 +18,7 @@ class DatasetConfig:
         short_name: str,
         datasets_path: str,
         dataset_name: str,
-        declarations_archive: Optional[str] = None,
+        type_decls: Optional[str] = None,
         split: Optional[str] = None,
         revision: Optional[str] = None,
         num_proc: Optional[int] = None,
@@ -26,10 +26,8 @@ class DatasetConfig:
     ):
         self.short_name = short_name
         self.dataset_path = str(Path(datasets_path, dataset_name).resolve())
-        self.declarations_archive = (
-            str(Path(datasets_path, declarations_archive).resolve())
-            if declarations_archive
-            else None
+        self.type_decls = (
+            str(Path(datasets_path, type_decls).resolve()) if type_decls else None
         )
         self.split = split
         self.revision = revision

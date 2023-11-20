@@ -133,7 +133,7 @@ def main():
         short_name="js",
         datasets_path=args.datasets_directory,
         dataset_name="typeweaver-bundle-filtered-subset",
-        declarations_archive="type_declarations.tar.gz",
+        type_decls="type_declarations.tar.gz",
     )
     configs += [
         Config("starcoderbase-1b", inference.approach1, js_dataset),
