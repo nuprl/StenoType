@@ -9,6 +9,7 @@ import argparse
 import evaluate
 import Levenshtein
 import numpy as np
+import re
 import shutil
 import subprocess
 import tarfile
@@ -16,10 +17,16 @@ import tempfile
 
 from model import Tokenizer
 from inference import Config
+from util import transform
 import util
 
 ACCURACY_METRIC = evaluate.load("accuracy")
+
+FILE_RE = re.compile("^// FILE: (\S+)$")
+TSC_ERROR_RE = re.compile("^(.*\.ts)\((\d+),\d+\):")
+
 LEVENSHTEIN_THRESHOLD = 0.99
+
 TSC_PATH = shutil.which("tsc")
 if not TSC_PATH:
     print("Could not find tsc")
@@ -48,13 +55,19 @@ def _levenshtein(original: str, output: str) -> float:
 
 
 @lru_cache(maxsize=32)
-def _tsc(contents: str, tmpdir: Optional[str] = None) -> tuple[bool, str]:
+def _untyped_levenshtein(original: str, output: str) -> float:
+    original_untyped = transform.delete_types(original)
+    output_untyped = transform.delete_types(original)
+    return _levenshtein(original_untyped, output_untyped)
 
+
+@lru_cache(maxsize=32)
+def _tsc(content: str, tmpdir: Optional[str] = None) -> tuple[bool, str]:
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".ts", dir=tmpdir, encoding="utf-8"
     ) as f:
         # Save content to temp file
-        print(contents, file=f, end="", flush=True)
+        print(content, file=f, end="", flush=True)
         tmpfile = Path(f.name)
 
         # Run tsc on temp file
@@ -74,9 +87,70 @@ def _tsc(contents: str, tmpdir: Optional[str] = None) -> tuple[bool, str]:
         return result.returncode == 0, result.stdout
 
 
+@lru_cache(maxsize=32)
+def _lines_to_file(content: str) -> list[str]:
+    # Initialize index/line 0 to the empty string
+    res: list[str] = [""]
+    curr_file = ""
+    for line in content.splitlines():
+        match = FILE_RE.match(line)
+        if match:
+            curr_file = match[1]
+        res.append(curr_file)
+    # Add another line; sometimes errors will point one past the last line
+    res.append(curr_file)
+    return res
+
+
+@lru_cache(maxsize=32)
+def _split_tsc_logs(logs: str) -> list[str]:
+    errors_list = []
+    for line in logs.splitlines():
+        if TSC_ERROR_RE.match(line):
+            # This line is an error
+            errors_list.append(line)
+        else:
+            # This line is part of the previous error
+            errors_list[-1] += f"\n{line}"
+    return errors_list
+
+
+@lru_cache(maxsize=32)
+def _files_to_errors(name: str, output: str, tsc_logs: str) -> dict[str, list[str]]:
+    # lines is a list of file names, such that
+    # line[i] is the name of the file that line i of output was originally from
+    lines = _lines_to_file(output)
+
+    # Get the set of files in this bundle, but remove the empty string
+    files = set(lines) - {""}
+
+    # Split the tsc logs into a list, one item per error (some errors span multiple lines)
+    errors_list = _split_tsc_logs(tsc_logs)
+
+    # If files is empty, then this is not a bundle, so all errors map to the single file
+    if not files:
+        return {name: errors_list}
+
+    res: dict[str, list[str]] = {f: [] for f in files}
+    for e in errors_list:
+        match = TSC_ERROR_RE.match(e)
+        if match and "node_modules/@types" not in e:
+            file = lines[int(match[2])]
+            if file in res:
+                res[file].append(e)
+            else:
+                # Error refers to a line that is not from a file in the bundle
+                # This could be code added by the bundler or the model
+                # Either way, we add a dummy file
+                res[name] = [e]
+
+    return res
+
+
 def _evaluate_completion(
     p_idx: int,
     c_idx: int,
+    name: str,
     original: str,
     completion: dict[str, Any],
     tokenizer: Tokenizer,
@@ -90,10 +164,21 @@ def _evaluate_completion(
     completion["token_count"] = len(tokenizer(output))
     completion["accuracy"] = _accuracy(tokenizer.tokenizer, original, output)
     completion["levenshtein"] = _levenshtein(original, output)
+    completion["untyped_levenshtein"] = _untyped_levenshtein(original, output)
 
+    completion["parses"] = transform.is_valid_syntax(output)
     type_checks, tsc_logs = _tsc(output, tmpdir)
     completion["type_checks"] = type_checks
     completion["tsc_logs"] = tsc_logs
+
+    # TODO: test this by running evaluation and inspecting results
+    # And see if we need more flags for running tsc
+    error_mapping = _files_to_errors(name, output, tsc_logs)
+    num_errorfree_files = len([k for k, v in error_mapping.items() if not v])
+    completion["files_to_errors_map"] = error_mapping
+    completion["num_errorfree_files"] = num_errorfree_files
+    completion["num_errors"] = len(tsc_logs)
+    completion["num_files"] = len(error_mapping.keys())
 
     return p_idx, c_idx, completion
 
@@ -110,6 +195,9 @@ def run_evaluation(config: Config, args: argparse.Namespace):
         print(f"Skipping {results_path} because it was already processed\n")
         return
 
+    # We can't update the dataset directly, so save the results in a map
+    results: list[dict[int, Any]] = [{} for _ in range(len(dataset))]
+
     # Type checking may require type declarations, so set up a temporary directory
     # and extract the type declarations (if they exist)
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -124,6 +212,7 @@ def run_evaluation(config: Config, args: argparse.Namespace):
                     _evaluate_completion,
                     p_idx,
                     c_idx,
+                    d["name"],
                     d["content"],
                     c,
                     tokenizer,
@@ -133,8 +222,6 @@ def run_evaluation(config: Config, args: argparse.Namespace):
                 for c_idx, c in enumerate(d["results"])
             ]
 
-            # We can't update the dataset directly, so save the results in a map
-            results: list[dict[int, Any]] = [{} for _ in range(len(dataset))]
             for f in tqdm(
                 futures.as_completed(fs),
                 desc="Evaluating results",
@@ -144,11 +231,11 @@ def run_evaluation(config: Config, args: argparse.Namespace):
                 p_idx, c_idx, result = f.result()
                 results[p_idx][c_idx] = result
 
-            # Now write the results to the dataset
-            results_list = [[r[k] for k in sorted(r.keys())] for r in results]
-            dataset = dataset.remove_columns("results").add_column(
-                name="results", column=results_list
-            )
+    # Now write the results to the dataset
+    results_list = [[r[k] for k in sorted(r.keys())] for r in results]
+    dataset = dataset.remove_columns("results").add_column(
+        name="results", column=results_list
+    )
 
     # Save dataset
     eval_output = config.eval_output_path(args.results_directory)
