@@ -71,15 +71,15 @@ def _tsc(content: str, tmpdir: Optional[str] = None) -> tuple[bool, str]:
         tmpfile = Path(f.name)
 
         # Run tsc on temp file
-        # TODO: do we need --moduleResolution node --target es6 --lib dom
+        # TODO: do we need --moduleResolution node
         args = [
             str(TSC_PATH),
-            "--noEmit",
-            "--esModuleInterop",
-            "--lib",
-            "es2021",
+            "--noEmit",             # don't emit JavaScript
+            "--esModuleInterop",    # better handling of CJS/ES6 modules
+            "--target", "es2015",   # enable es2015 (es6) features
+            "--lib", "es2022,dom",  # enable additional library APIs
             str(tmpfile),
-        ]
+        ]  # fmt: skip
         result = subprocess.run(
             args, stdout=PIPE, stderr=DEVNULL, encoding="utf-8", cwd=tmpfile.parent
         )
@@ -134,7 +134,8 @@ def _files_to_errors(name: str, output: str, tsc_logs: str) -> dict[str, list[st
     res: dict[str, list[str]] = {f: [] for f in files}
     for e in errors_list:
         match = TSC_ERROR_RE.match(e)
-        if match and "node_modules/@types" not in e:
+        # Skip library files
+        if match and "node_modules" not in e:
             file = lines[int(match[2])]
             if file in res:
                 res[file].append(e)
@@ -147,6 +148,23 @@ def _files_to_errors(name: str, output: str, tsc_logs: str) -> dict[str, list[st
     return res
 
 
+def _unzip_files_errors(mapping: dict[str, Any]) -> dict[str, list]:
+    # mapping is a dictionary that maps filenames to lists of error
+    # However, saving this in a dataset causes all filenames of all entries to be merged
+    # So we restructure this by splitting the keys/values of the dictionary into two lists
+    files_errors: dict[str, list] = {"files": [], "errors": []}
+    for f, e in mapping.items():
+        files_errors["files"].append(f)
+        files_errors["errors"].append(e)
+    return files_errors
+
+
+def _zip_files_errors(mapping: dict[str, list]) -> dict[str, Any]:
+    # We have a dict {"files": files_list, "errors": errors_list}
+    # and we want to zip the two lists together to make a dict
+    return dict(zip(mapping["files"], mapping["errors"]))
+
+
 def _evaluate_completion(
     p_idx: int,
     c_idx: int,
@@ -156,31 +174,35 @@ def _evaluate_completion(
     tokenizer: Tokenizer,
     tmpdir: Optional[str] = None,
 ) -> tuple[int, int, dict[str, Any]]:
-    if completion["error"]:
+    try:
+        if completion["error"]:
+            return p_idx, c_idx, completion
+
+        output = completion["output"]
+
+        completion["token_count"] = len(tokenizer(output))
+        completion["accuracy"] = _accuracy(tokenizer.tokenizer, original, output)
+        completion["levenshtein"] = _levenshtein(original, output)
+        completion["untyped_levenshtein"] = _untyped_levenshtein(original, output)
+
+        completion["parses"] = transform.is_valid_syntax(output)
+        type_checks, tsc_logs = _tsc(output, tmpdir)
+        completion["type_checks"] = type_checks
+        completion["tsc_logs"] = tsc_logs
+
+        # TODO: test this by running evaluation and inspecting results
+        error_mapping = _files_to_errors(name, output, tsc_logs)
+        num_errorfree_files = len([k for k, v in error_mapping.items() if not v])
+        completion["files_errors"] = _unzip_files_errors(error_mapping)
+        completion["num_errorfree_files"] = num_errorfree_files
+        completion["num_errors"] = len(tsc_logs)
+        completion["num_files"] = len(error_mapping.keys())
+
+
         return p_idx, c_idx, completion
-
-    output = completion["output"]
-
-    completion["token_count"] = len(tokenizer(output))
-    completion["accuracy"] = _accuracy(tokenizer.tokenizer, original, output)
-    completion["levenshtein"] = _levenshtein(original, output)
-    completion["untyped_levenshtein"] = _untyped_levenshtein(original, output)
-
-    completion["parses"] = transform.is_valid_syntax(output)
-    type_checks, tsc_logs = _tsc(output, tmpdir)
-    completion["type_checks"] = type_checks
-    completion["tsc_logs"] = tsc_logs
-
-    # TODO: test this by running evaluation and inspecting results
-    # And see if we need more flags for running tsc
-    error_mapping = _files_to_errors(name, output, tsc_logs)
-    num_errorfree_files = len([k for k, v in error_mapping.items() if not v])
-    completion["files_to_errors_map"] = error_mapping
-    completion["num_errorfree_files"] = num_errorfree_files
-    completion["num_errors"] = len(tsc_logs)
-    completion["num_files"] = len(error_mapping.keys())
-
-    return p_idx, c_idx, completion
+    except:
+        print(f"!!! ERROR with problem {p_idx}, completion {c_idx} !!!")
+        raise
 
 
 def run_evaluation(config: Config, args: argparse.Namespace):
