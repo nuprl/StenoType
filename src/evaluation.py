@@ -57,7 +57,7 @@ def _levenshtein(original: str, output: str) -> float:
 @lru_cache(maxsize=32)
 def _untyped_levenshtein(original: str, output: str) -> float:
     original_untyped = transform.delete_types(original)
-    output_untyped = transform.delete_types(original)
+    output_untyped = transform.delete_types(output)
     return _levenshtein(original_untyped, output_untyped)
 
 
@@ -71,13 +71,13 @@ def _tsc(content: str, tmpdir: Optional[str] = None) -> tuple[bool, str]:
         tmpfile = Path(f.name)
 
         # Run tsc on temp file
-        # TODO: do we need --moduleResolution node
         args = [
             str(TSC_PATH),
-            "--noEmit",             # don't emit JavaScript
-            "--esModuleInterop",    # better handling of CJS/ES6 modules
-            "--target", "es2015",   # enable es2015 (es6) features
-            "--lib", "es2022,dom",  # enable additional library APIs
+            "--noEmit",                     # don't emit JavaScript
+            "--esModuleInterop",            # better handling of CJS/ES6 modules
+            "--moduleResolution", "node",   # use node's module resolution
+            "--target", "es2022",           # enable support for es2022 features
+            "--lib", "es2022,dom",          # enable additional library APIs
             str(tmpfile),
         ]  # fmt: skip
         result = subprocess.run(
@@ -149,7 +149,7 @@ def _files_to_errors(name: str, output: str, tsc_logs: str) -> dict[str, list[st
 
 
 def _unzip_files_errors(mapping: dict[str, Any]) -> dict[str, list]:
-    # mapping is a dictionary that maps filenames to lists of error
+    # mapping is a dictionary that maps filenames to lists of errors
     # However, saving this in a dataset causes all filenames of all entries to be merged
     # So we restructure this by splitting the keys/values of the dictionary into two lists
     files_errors: dict[str, list] = {"files": [], "errors": []}
@@ -190,12 +190,11 @@ def _evaluate_completion(
         completion["type_checks"] = type_checks
         completion["tsc_logs"] = tsc_logs
 
-        # TODO: test this by running evaluation and inspecting results
         error_mapping = _files_to_errors(name, output, tsc_logs)
         num_errorfree_files = len([k for k, v in error_mapping.items() if not v])
         completion["files_errors"] = _unzip_files_errors(error_mapping)
         completion["num_errorfree_files"] = num_errorfree_files
-        completion["num_errors"] = len(tsc_logs)
+        completion["num_errors"] = len([e for es in error_mapping.values() for e in es])
         completion["num_files"] = len(error_mapping.keys())
 
 
