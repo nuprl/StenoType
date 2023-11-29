@@ -102,6 +102,8 @@ def split_at_annotation_locations(content: str) -> list[str]:
             (formal_parameters) @ann
             (public_field_definition
                 name: (_) @ann)
+            (property_signature
+                name: (_) @ann)
             (variable_declarator
                 name: (_) @ann)
         ]
@@ -322,12 +324,11 @@ def get_type_name(node: Node) -> str:
 
 def get_type_identifier_name(node: Node) -> Optional[str]:
     """
-    Given a type annotation or definition node, return the name of type type
+    Given a type annotation or definition node, return the name of the type
     if it is a user-defined type. Otherwise, return None.
     """
     query = LANGUAGE.query("(type_identifier) @name")
-    captures = query.captures(node)
-    if captures:
+    if captures := query.captures(node):
         return node_to_str(captures[0][0]).strip()
     else:
         return None

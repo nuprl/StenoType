@@ -26,8 +26,7 @@ def main():
     ckpt_files = ["config.json", "generation_config.json", "pytorch_model.bin"]
     ckpt_paths = [Path(args.checkpoint, f) for f in ckpt_files]
 
-    missing = [str(p) for p in ckpt_paths if not p.exists()]
-    if missing:
+    if missing := [str(p) for p in ckpt_paths if not p.exists()]:
         print("Missing checkpoint files:")
         print("\n".join(missing))
         exit(1)

@@ -93,8 +93,7 @@ def _lines_to_file(content: str) -> list[str]:
     res: list[str] = [""]
     curr_file = ""
     for line in content.splitlines():
-        match = FILE_RE.match(line)
-        if match:
+        if match := FILE_RE.match(line):
             curr_file = match[1]
         res.append(curr_file)
     # Add another line; sometimes errors will point one past the last line
@@ -104,6 +103,7 @@ def _lines_to_file(content: str) -> list[str]:
 
 @lru_cache(maxsize=32)
 def _split_tsc_logs(logs: str) -> list[str]:
+    # Takes a string containing tsc output and returns a list of errors
     errors_list = []
     for line in logs.splitlines():
         if TSC_ERROR_RE.match(line):
@@ -133,9 +133,8 @@ def _files_to_errors(name: str, output: str, tsc_logs: str) -> dict[str, list[st
 
     res: dict[str, list[str]] = {f: [] for f in files}
     for e in errors_list:
-        match = TSC_ERROR_RE.match(e)
         # Skip library files
-        if match and "node_modules" not in e:
+        if (match := TSC_ERROR_RE.match(e)) and "node_modules" not in e:
             file = lines[int(match[2])]
             if file in res:
                 res[file].append(e)
