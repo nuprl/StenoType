@@ -306,15 +306,6 @@ def filter_typechecks(
     return typechecks
 
 
-def count_annotation_sites(s: str) -> int:
-    # Returns a list of strings, where each item is the substring between
-    # annotation locations.
-    chunks = transform.split_at_annotation_locations(s)
-    # So we just need to subtract 1 from the length, to get the number of
-    # annotation locations
-    return len(chunks) - 1
-
-
 def count_type_definitions(s: str) -> int:
     # Excludes classes and abstract classes
     captures = transform.run_query(
@@ -394,7 +385,7 @@ def loc_per_function(s: str) -> float:
 def add_metrics(example: dict[str, Any]) -> dict[str, Any]:
     content = example["content"]
 
-    example["annotation_sites"] = count_annotation_sites(content)
+    example["annotation_sites"] = transform.count_annotation_sites(content)
     example["type_definitions"] = count_type_definitions(content)
     example["loc"] = count_loc(content)
     example["functions"] = count_functions(content)

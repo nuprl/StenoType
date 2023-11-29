@@ -55,13 +55,6 @@ def _levenshtein(original: str, output: str) -> float:
 
 
 @lru_cache(maxsize=32)
-def _untyped_levenshtein(original: str, output: str) -> float:
-    original_untyped = transform.delete_types(original)
-    output_untyped = transform.delete_types(output)
-    return _levenshtein(original_untyped, output_untyped)
-
-
-@lru_cache(maxsize=32)
 def _tsc(content: str, tmpdir: Optional[str] = None) -> tuple[bool, str]:
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".ts", dir=tmpdir, encoding="utf-8"
@@ -169,6 +162,7 @@ def _evaluate_completion(
     c_idx: int,
     name: str,
     original: str,
+    original_untyped: str,
     completion: dict[str, Any],
     tokenizer: Tokenizer,
     tmpdir: Optional[str] = None,
@@ -178,11 +172,14 @@ def _evaluate_completion(
             return p_idx, c_idx, completion
 
         output = completion["output"]
+        output_untyped = transform.delete_types(output)
 
         completion["token_count"] = len(tokenizer(output))
         completion["accuracy"] = _accuracy(tokenizer.tokenizer, original, output)
         completion["levenshtein"] = _levenshtein(original, output)
-        completion["untyped_levenshtein"] = _untyped_levenshtein(original, output)
+        completion["untyped_levenshtein"] = _levenshtein(
+            original_untyped, output_untyped
+        )
 
         completion["parses"] = transform.is_valid_syntax(output)
         type_checks, tsc_logs = _tsc(output, tmpdir)
@@ -190,9 +187,10 @@ def _evaluate_completion(
         completion["tsc_logs"] = tsc_logs
 
         error_mapping = _files_to_errors(name, output, tsc_logs)
-        num_errorfree_files = len([k for k, v in error_mapping.items() if not v])
         completion["files_errors"] = _unzip_files_errors(error_mapping)
-        completion["num_errorfree_files"] = num_errorfree_files
+        completion["num_errorfree_files"] = len(
+            [k for k, v in error_mapping.items() if not v]
+        )
         completion["num_errors"] = len([e for es in error_mapping.values() for e in es])
         completion["num_files"] = len(error_mapping.keys())
 
@@ -234,6 +232,7 @@ def run_evaluation(config: Config, args: argparse.Namespace):
                     c_idx,
                     d["name"],
                     d["content"],
+                    d["content_without_types"],
                     c,
                     tokenizer,
                     tmpdir,

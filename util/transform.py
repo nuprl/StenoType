@@ -131,6 +131,17 @@ def split_at_annotation_locations(content: str) -> list[str]:
     return chunks
 
 
+def count_annotation_sites(s: str) -> int:
+    """
+    Returns the number annotation sites in the given TypeScript program.
+    """
+    # chunks is a list of strings, where each item is the substring between
+    # annotations sites. Therefore, we subtract 1 from the length to get the
+    # number of annotation sites.
+    chunks = split_at_annotation_locations(s)
+    return len(chunks) - 1
+
+
 def slice_input(content: str, slice_length: int) -> list[str]:
     """
     Splits the input into slices of at most slice_length, breaking at newlines
