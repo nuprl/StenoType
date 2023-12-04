@@ -194,6 +194,29 @@ def _evaluate_completion(
         completion["num_errors"] = len([e for es in error_mapping.values() for e in es])
         completion["num_files"] = len(error_mapping.keys())
 
+        annotation_text = [
+            transform.node_to_str(n.named_children[0])
+            for n in transform.extract_type_annotation_nodes(output)
+        ]
+        completion["num_annotation_sites"] = transform.count_annotation_sites(
+            output, exclude_child_annotations=True
+        )
+        completion["num_annotations_added"] = len(annotation_text)
+        completion["num_annotations_trivial"] = len(
+            [n for n in annotation_text if "any" in n or "Function" in n]
+        )
+
+        # Note: we want the original *classes* (which were not deleted) from the input
+        original_types = set(transform.get_type_definition_names(original_untyped))
+        output_types = set(transform.get_type_definition_names(output))
+
+        completion["num_definitions_added"] = len(output_types - original_types)
+        completion["num_definitions_used"] = len(
+            transform.get_used_type_definitions(output)
+        )
+        completion["num_definitions_undefined"] = len(
+            transform.get_undefined_type_names(output)
+        )
 
         return p_idx, c_idx, completion
     except:

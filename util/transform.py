@@ -79,7 +79,9 @@ def parenthesize_arrow_params(content: str) -> str:
     return content_bytes.decode("utf-8-sig")
 
 
-def split_at_annotation_locations(content: str) -> list[str]:
+def split_at_annotation_locations(
+    content: str, exclude_child_annotations: bool = False
+) -> list[str]:
     """
     Given the TypeScript program as a string, split at the type annotation
     locations and return a list of strings, where each item is the substring
@@ -110,6 +112,9 @@ def split_at_annotation_locations(content: str) -> list[str]:
         """,
     )
 
+    if exclude_child_annotations:
+        captures = [c for c in captures if not _is_child_type_annotation(c[0])]
+
     # Need to operate on byte string, not characters
     content_bytes = content.encode("utf-8")
 
@@ -131,14 +136,16 @@ def split_at_annotation_locations(content: str) -> list[str]:
     return chunks
 
 
-def count_annotation_sites(s: str) -> int:
+def count_annotation_sites(s: str, exclude_child_annotations: bool = False) -> int:
     """
     Returns the number annotation sites in the given TypeScript program.
     """
     # chunks is a list of strings, where each item is the substring between
     # annotations sites. Therefore, we subtract 1 from the length to get the
     # number of annotation sites.
-    chunks = split_at_annotation_locations(s)
+    chunks = split_at_annotation_locations(
+        s, exclude_child_annotations=exclude_child_annotations
+    )
     return len(chunks) - 1
 
 
@@ -413,7 +420,10 @@ def get_definitions_and_mentioned_types(content: str) -> tuple[set[str], set[str
 
 
 def get_undefined_type_names(content: str) -> list[str]:
-    """Given a program as a string, return a list of names of undefined types."""
+    """
+    Given a program as a string, return a list of names of undefined types. Note
+    that a type may be "undefined" even if it is actually defined in the stdlib.
+    """
     definitions, types = get_definitions_and_mentioned_types(content)
     return list(types - definitions)
 
