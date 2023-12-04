@@ -194,7 +194,7 @@ def clip_text(s1: str, s2: str, max_length: int) -> tuple[str, str]:
     return s1, s2
 
 
-def delete_between_indices(content: str, indices: list[Optional[int]]) -> str:
+def _delete_between_indices(content: str, indices: list[Optional[int]]) -> str:
     """Helper for deleting text between indices of a string."""
     # Need to operate on byte string, not characters
     content_bytes = content.encode("utf-8")
@@ -206,11 +206,10 @@ def delete_between_indices(content: str, indices: list[Optional[int]]) -> str:
     for s, e in zip(indices[::2], indices[1::2]):
         chunks.append(content_bytes[s:e].decode("utf-8-sig"))
     new_content = "".join(chunks)
-
     return new_content
 
 
-def delete_nodes(content: str, nodes: list[Node]) -> str:
+def _delete_nodes(content: str, nodes: list[Node]) -> str:
     """
     Given a content string and a list of AST nodes, return a new string with
     those nodes deleted.
@@ -222,11 +221,10 @@ def delete_nodes(content: str, nodes: list[Node]) -> str:
     #   -> [None, s1, e1, s2, e2, None]
     pairs = [(n.start_byte, n.end_byte) for n in nodes]
     indices = [None] + [i for p in pairs for i in p] + [None]
+    return _delete_between_indices(content, indices)
 
-    return delete_between_indices(content, indices)
 
-
-def is_child_type_annotation(start_node: Node) -> bool:
+def _is_child_type_annotation(start_node: Node) -> bool:
     """Checks if any of the parent nodes is an annotation node."""
     node = start_node.parent
     while node is not None:
@@ -243,6 +241,7 @@ def is_child_type_annotation(start_node: Node) -> bool:
 def extract_type_annotation_nodes(content: str) -> list[Node]:
     """
     Returns a list of nodes, representing type annotations from the given string.
+    A complex type, e.g. A<B, C>, is returned as a single element of the list
     """
     captures = run_query(
         content,
@@ -254,25 +253,17 @@ def extract_type_annotation_nodes(content: str) -> list[Node]:
         ]
         """,
     )
-    nodes = [c[0] for c in captures if not is_child_type_annotation(c[0])]
-    return nodes
+    return [c[0] for c in captures if not _is_child_type_annotation(c[0])]
 
 
 def delete_type_annotations(content: str) -> str:
     """Deletes type annotations from the given string."""
     nodes = extract_type_annotation_nodes(content)
-    return delete_nodes(content, nodes)
-
-
-def is_child_of_export(start_node: Node) -> bool:
-    """Checks if the parent node is an export statement."""
-    if start_node.parent:
-        return start_node.parent.type == "export_statement"
-    return False
+    return _delete_nodes(content, nodes)
 
 
 def extract_type_definition_nodes(
-    content: str, include_classes: bool = False, delete_comments: bool = False
+    content: str, include_classes: bool = False
 ) -> list[Node]:
     """
     Returns a list of nodes, representing (non-class) type definitions from the
@@ -280,72 +271,58 @@ def extract_type_definition_nodes(
     """
     classes_query = """
         (class_declaration) @type
-        (export_statement
-            declaration: (class_declaration)) @type
+        (abstract_class_declaration) @type
     """
     type_definitions_query = f"""
     [
         (interface_declaration) @type
         (type_alias_declaration) @type
-        (export_statement
-            declaration: (interface_declaration)) @type
-        (export_statement
-            declaration: (type_alias_declaration)) @type
         {classes_query if include_classes else ""}
     ]
     """
     captures = run_query(content, type_definitions_query)
-    nodes = [c[0] for c in captures if not is_child_of_export(c[0])]
+    return [c[0] for c in captures]
 
-    # If deleting comments that directly precede type definition nodes,
-    # check the previous (named) sibling of each type definition node
-    if delete_comments:
-        res = []
-        for n in nodes:
+
+def _delete_type_definition_nodes(
+    content: str, nodes: list[Node], delete_comments: bool = False
+) -> str:
+    """
+    Given a program as a string and a list of type definition nodes from that
+    program, delete those type definitions.
+
+    This is a helper function to facilitate deleting parent export statements
+    (if the type definition is part of an export) and also preceding comments.
+    """
+    to_delete = []
+    for n in nodes:
+        # If the current node is a child of an export statement, replace the
+        # node with its parent: we want to delete the export statement
+        if n.parent and n.parent.type == "export_statement":
+            n = n.parent
+
+        # If deleting comments that directly precede type definition nodes, check
+        # the previous (named) sibling of each type definition node
+        if delete_comments:
             prev_sibling = n.prev_named_sibling
             if prev_sibling and prev_sibling.type == "comment":
-                res.append(prev_sibling)
-            res.append(n)
-        return res
+                to_delete.append(prev_sibling)
+        to_delete.append(n)
 
-    return nodes
-
-
-def delete_type_definitions(content: str, delete_comments: bool = False) -> str:
-    """Deletes (non-class) type definitions from the given string."""
-    nodes = extract_type_definition_nodes(content, delete_comments=delete_comments)
-    return delete_nodes(content, nodes)
+    return _delete_nodes(content, to_delete)
 
 
-def get_type_name(node: Node) -> str:
-    """
-    Given a type annotation or definition node, return the name of the type.
-    """
-    query = LANGUAGE.query(
-        """
-        [
-          (predefined_type) @name
-          (type_identifier) @name
-        ]
-        """
+def delete_type_definitions(
+    content: str, delete_classes: bool = False, delete_comments: bool = False
+) -> str:
+    """Deletes type definitions from the given string."""
+    nodes = extract_type_definition_nodes(content, include_classes=delete_classes)
+    return _delete_type_definition_nodes(
+        content, nodes, delete_comments=delete_comments
     )
-    captures = query.captures(node)
-    return node_to_str(captures[0][0]).strip()
 
 
-def get_type_identifier_name(node: Node) -> Optional[str]:
-    """
-    Given a type annotation or definition node, return the name of the type
-    if it is a user-defined type. Otherwise, return None.
-    """
-    query = LANGUAGE.query("(type_identifier) @name")
-    if captures := query.captures(node):
-        return node_to_str(captures[0][0]).strip()
-    else:
-        return None
-
-
-def is_child_type_assertion(start_node: Node) -> bool:
+def _is_child_type_assertion(start_node: Node) -> bool:
     """Checks if any of the parent nodes is a type assertion node."""
     node = start_node.parent
     while node is not None:
@@ -359,11 +336,11 @@ def delete_type_assertions(content: str) -> str:
     """Recursively deletes type assertions from the given string."""
     captures = run_query(content, "(as_expression) @as_expression")
 
-    nodes = [c[0] for c in captures if not is_child_type_assertion(c[0])]
+    nodes = [c[0] for c in captures if not _is_child_type_assertion(c[0])]
     if not nodes:
         return content
 
-    # Make a list of indices for deletion, to be used by delete_between_indices
+    # Make a list of indices for deletion, to be used by _delete_between_indices
     # i.e. the format needs to be [None, s1, e1, ..., s2, e2, None]
     # where `s` and `e` are `start` and `end` indices
     indices: list[Optional[int]] = [None]
@@ -375,15 +352,19 @@ def delete_type_assertions(content: str) -> str:
         indices.append(n.end_byte)
     indices.append(None)
 
-    content = delete_between_indices(content, indices)
+    content = _delete_between_indices(content, indices)
 
     # Recursive call to handle nested type assertion expressions
     return delete_type_assertions(content)
 
 
-def delete_types(content: str, delete_comments: bool = False) -> str:
+def delete_types(
+    content: str, delete_classes: bool = False, delete_comments: bool = False
+) -> str:
     """Deletes type annotations and type definitions from the given string."""
-    content = delete_type_definitions(content, delete_comments)
+    content = delete_type_definitions(
+        content, delete_classes=delete_classes, delete_comments=delete_comments
+    )
     content = delete_type_annotations(content)
     content = delete_type_assertions(content)
     return content
@@ -393,7 +374,7 @@ def delete_comments(content: str) -> str:
     """Deletes comments from the given string."""
     captures = run_query(content, "(comment) @comment")
     nodes = [c[0] for c in captures]
-    return delete_nodes(content, nodes)
+    return _delete_nodes(content, nodes)
 
 
 def is_empty(content: str) -> bool:
@@ -401,16 +382,46 @@ def is_empty(content: str) -> bool:
     return delete_comments(content).strip() == ""
 
 
+def get_type_definition_names(content: str) -> list[str]:
+    """
+    Given a program as a string, return a list of strings of types defined
+    by that program.
+    """
+    nodes = extract_type_definition_nodes(content, include_classes=True)
+    return [node_to_str(n.named_children[0]) for n in nodes]
+
+
+def get_type_names_used_in_annotations(content: str) -> list[str]:
+    """
+    Given a program as a string, return a list of all names of all types used
+    by type annotations.
+    """
+    query = LANGUAGE.query("(type_identifier) @name")
+    nodes = extract_type_annotation_nodes(content)
+    return [node_to_str(c[0]) for node in nodes for c in query.captures(node)]
+
+
+def get_definitions_and_mentioned_types(content: str) -> tuple[set[str], set[str]]:
+    """
+    Given a program as a string, return a tuple where the first element is a
+    set of types defined by that program, and the second element is a set of
+    types mentioned by that program.
+    """
+    definitions = set(get_type_definition_names(content))
+    types = set(get_type_names_used_in_annotations(content))
+    return definitions, types
+
+
 def get_undefined_type_names(content: str) -> list[str]:
+    """Given a program as a string, return a list of names of undefined types."""
+    definitions, types = get_definitions_and_mentioned_types(content)
+    return list(types - definitions)
+
+
+def get_used_type_definitions(content: str) -> list[str]:
     """
-    Return a list of undefined type names, for the given string.
+    Given a program as a string, return a list of names of types defined by
+    the program that were also used.
     """
-    type_anns = {
-        get_type_identifier_name(n) for n in extract_type_annotation_nodes(content)
-    }
-    type_defs = {
-        get_type_identifier_name(n)
-        for n in extract_type_definition_nodes(content, include_classes=True)
-    }
-    result = [t for t in (type_anns - type_defs) if t]
-    return result
+    definitions, types = get_definitions_and_mentioned_types(content)
+    return list(types & definitions)

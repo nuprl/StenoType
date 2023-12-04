@@ -162,7 +162,7 @@ def get4(element: dict[str, Any]) -> Optional[str]:
             to_delete = [n for n in typedef_nodes if random.randint(0, 1) == 0]
 
         # Delete types from the code, to get the commit before
-        before_code = transform.delete_nodes(original, to_delete)
+        before_code = transform._delete_type_definition_nodes(original, to_delete)
 
         # Select the node at a random index to keep, and remove it from the list
         # The remaining nodes are ones we want to delete
@@ -170,10 +170,12 @@ def get4(element: dict[str, Any]) -> Optional[str]:
         keep_node = to_delete.pop(index)
 
         # Delete types from the code, to get the commit after
-        after_code = transform.delete_nodes(original, to_delete)
+        after_code = transform._delete_type_definition_nodes(original, to_delete)
 
         # Get the name of the type we're keeping, so we can add it to the prompt
-        type_to_add = transform.get_type_name(keep_node)
+        # keep_node is guaranteed to be a type definition node, whose first named
+        # child is the name of the type
+        type_to_add = transform.node_to_str(keep_node.named_children[0])
 
         return commit_format(
             before_code, f"Add a type alias or interface for {type_to_add}", after_code
