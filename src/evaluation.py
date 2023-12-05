@@ -81,6 +81,26 @@ def _tsc(content: str, tmpdir: Optional[str] = None) -> tuple[bool, str]:
 
 
 @lru_cache(maxsize=32)
+def _split_files(name: str, content: str) -> dict[str, dict[str, Any]]:
+    # Given the content of a bundled project, split it up by files
+    res: dict[str, list[str]] = {}
+    curr_file = name
+    for line in content.splitlines():
+        # What file are we now processing?
+        if match := FILE_RE.match(line):
+            curr_file = match[1]
+
+        # Add the line to the dictionary
+        if curr_file in res:
+            res[curr_file].append(line)
+        else:
+            res[curr_file] = [line]
+
+    # File contents are lists of strings, need to join them to get strings
+    return {k: {"content": "\n".join(v)} for k, v in res.items()}
+
+
+@lru_cache(maxsize=32)
 def _lines_to_file(content: str) -> list[str]:
     # Initialize index/line 0 to the empty string
     res: list[str] = [""]
@@ -109,7 +129,7 @@ def _split_tsc_logs(logs: str) -> list[str]:
 
 
 @lru_cache(maxsize=32)
-def _files_to_errors(name: str, output: str, tsc_logs: str) -> dict[str, list[str]]:
+def _split_errors(name: str, output: str, tsc_logs: str) -> dict[str, dict[str, Any]]:
     # lines is a list of file names, such that
     # line[i] is the name of the file that line i of output was originally from
     lines = _lines_to_file(output)
@@ -122,39 +142,102 @@ def _files_to_errors(name: str, output: str, tsc_logs: str) -> dict[str, list[st
 
     # If files is empty, then this is not a bundle, so all errors map to the single file
     if not files:
-        return {name: errors_list}
+        return {name: {"errors": errors_list}}
 
-    res: dict[str, list[str]] = {f: [] for f in files}
+    res: dict[str, dict[str, Any]] = {f: {"errors": []} for f in files}
     for e in errors_list:
         # Skip library files
         if (match := TSC_ERROR_RE.match(e)) and "node_modules" not in e:
             file = lines[int(match[2])]
             if file in res:
-                res[file].append(e)
+                res[file]["errors"].append(e)
             else:
                 # Error refers to a line that is not from a file in the bundle
                 # This could be code added by the bundler or the model
                 # Either way, we add a dummy file
-                res[name] = [e]
+                res[name] = {"errors": [e]}
 
     return res
 
 
-def _unzip_files_errors(mapping: dict[str, Any]) -> dict[str, list]:
-    # mapping is a dictionary that maps filenames to lists of errors
+def _unzip_files_results(mapping: dict[str, dict]) -> dict[str, list]:
+    # mapping is a dictionary that maps filenames to a results dictionary
     # However, saving this in a dataset causes all filenames of all entries to be merged
     # So we restructure this by splitting the keys/values of the dictionary into two lists
-    files_errors: dict[str, list] = {"files": [], "errors": []}
-    for f, e in mapping.items():
-        files_errors["files"].append(f)
-        files_errors["errors"].append(e)
-    return files_errors
+    ret: dict[str, list] = {"files": [], "results": []}
+    for f, r in mapping.items():
+        ret["files"].append(f)
+        ret["results"].append(r)
+    return ret
 
 
-def _zip_files_errors(mapping: dict[str, list]) -> dict[str, Any]:
-    # We have a dict {"files": files_list, "errors": errors_list}
+def _zip_files_results(mapping: dict[str, list]) -> dict[str, dict]:
+    # We have a dict {"files": files_list, "results": results_list}
     # and we want to zip the two lists together to make a dict
-    return dict(zip(mapping["files"], mapping["errors"]))
+    return dict(zip(mapping["files"], mapping["results"]))
+
+
+def _evaluate_files(
+    name: str, original: str, output: str, tsc_logs: str
+) -> dict[str, dict[str, Any]]:
+    # Split the original file; later we need to extract type definitions
+    split_original = _split_files(name, original)
+
+    # Merge the output and errors maps
+    split_output = _split_files(name, output)
+    split_errors = _split_errors(name, output, tsc_logs)
+    file_results = {
+        k: split_output.get(k, {"content": ""}) | split_errors.get(k, {"errors": []})
+        for k in (split_output.keys() | split_errors.keys())
+    }
+
+    # Now iterate over each file
+    for file, res in file_results.items():
+        original = split_original.get(file, {"content": ""})["content"]
+        original_untyped = transform.delete_types(original)
+        file_content = res["content"]
+        file_untyped = transform.delete_types(file_content)
+
+        # Count errors
+        file_results[file]["num_errors"] = len(res["errors"])
+
+        # Compute type annotation stats
+        annotation_text = [
+            transform.node_to_str(n.named_children[0])
+            for n in transform.extract_type_annotation_nodes(file_content)
+        ]
+        annotations_added = len(annotation_text)
+        file_results[file]["num_annotation_sites"] = transform.count_annotation_sites(
+            file_content, exclude_child_annotations=True
+        )
+        file_results[file]["num_annotations_added"] = annotations_added
+        file_results[file]["num_annotations_trivial"] = len(
+            [n for n in annotation_text if "any" in n or "Function" in n]
+        )
+        file_results[file]["type_annotations"] = set(annotation_text)
+
+        # Compute type definition stats
+        original_types = set(transform.get_type_definition_names(original_untyped))
+        output_types = set(transform.get_type_definition_names(file_content))
+        definitions_added = len(output_types - original_types)
+        definitions_used = transform.get_used_type_definitions(file_content)
+        annotations_undefined = transform.get_undefined_type_names(file_content)
+        file_results[file]["num_definitions_added"] = definitions_added
+        file_results[file]["num_definitions_used"] = len(definitions_used)
+        file_results[file]["num_definitions_undefined"] = len(annotations_undefined)
+        file_results[file]["type_definitions"] = output_types
+        file_results[file]["type_definitions_used"] = definitions_used
+        file_results[file]["type_annotations_undefined"] = annotations_undefined
+
+        # For now, "correct" means no errors, original_untyped is the same as
+        # output_untyped, and at least one annotation or definition was added
+        file_results[file]["correct"] = (
+            len(res["errors"]) == 0
+            and original_untyped == file_untyped
+            and (annotations_added + definitions_added) > 0
+        )
+
+    return file_results
 
 
 def _evaluate_completion(
@@ -186,48 +269,9 @@ def _evaluate_completion(
         completion["type_checks"] = type_checks
         completion["tsc_logs"] = tsc_logs
 
-        error_mapping = _files_to_errors(name, output, tsc_logs)
-        completion["files_errors"] = _unzip_files_errors(error_mapping)
-        completion["num_errorfree_files"] = len(
-            [k for k, v in error_mapping.items() if not v]
-        )
-        completion["num_errors"] = len([e for es in error_mapping.values() for e in es])
-        completion["num_files"] = len(error_mapping.keys())
-
-        annotation_text = [
-            transform.node_to_str(n.named_children[0])
-            for n in transform.extract_type_annotation_nodes(output)
-        ]
-        annotations_added = len(annotation_text)
-        completion["num_annotation_sites"] = transform.count_annotation_sites(
-            output, exclude_child_annotations=True
-        )
-        completion["num_annotations_added"] = annotations_added
-        completion["num_annotations_trivial"] = len(
-            [n for n in annotation_text if "any" in n or "Function" in n]
-        )
-
-        # Note: we want the original *classes* (which were not deleted) from the input
-        original_types = set(transform.get_type_definition_names(original_untyped))
-        output_types = set(transform.get_type_definition_names(output))
-        definitions_added = len(output_types - original_types)
-        completion["num_definitions_added"] = definitions_added
-        completion["num_definitions_used"] = len(
-            transform.get_used_type_definitions(output)
-        )
-        completion["num_definitions_undefined"] = len(
-            transform.get_undefined_type_names(output)
-        )
-
-        # TODO: For now, "correct" means it type checks, original_untyped is
-        # the same as output_untyped, and at least one annotation or definition
-        # was added.
-        # Later we may want per-file correctness rather than per-project.
-        completion["correct"] = (
-            type_checks
-            and original_untyped == output_untyped
-            and (annotations_added + definitions_added) >= 1
-        )
+        # Get per-file results
+        files_results = _evaluate_files(name, original, output, tsc_logs)
+        completion["files_results"] = _unzip_files_results(files_results)
 
         return p_idx, c_idx, completion
     except:
