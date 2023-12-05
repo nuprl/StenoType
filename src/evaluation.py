@@ -198,10 +198,11 @@ def _evaluate_completion(
             transform.node_to_str(n.named_children[0])
             for n in transform.extract_type_annotation_nodes(output)
         ]
+        annotations_added = len(annotation_text)
         completion["num_annotation_sites"] = transform.count_annotation_sites(
             output, exclude_child_annotations=True
         )
-        completion["num_annotations_added"] = len(annotation_text)
+        completion["num_annotations_added"] = annotations_added
         completion["num_annotations_trivial"] = len(
             [n for n in annotation_text if "any" in n or "Function" in n]
         )
@@ -209,13 +210,23 @@ def _evaluate_completion(
         # Note: we want the original *classes* (which were not deleted) from the input
         original_types = set(transform.get_type_definition_names(original_untyped))
         output_types = set(transform.get_type_definition_names(output))
-
-        completion["num_definitions_added"] = len(output_types - original_types)
+        definitions_added = len(output_types - original_types)
+        completion["num_definitions_added"] = definitions_added
         completion["num_definitions_used"] = len(
             transform.get_used_type_definitions(output)
         )
         completion["num_definitions_undefined"] = len(
             transform.get_undefined_type_names(output)
+        )
+
+        # TODO: For now, "correct" means it type checks, original_untyped is
+        # the same as output_untyped, and at least one annotation or definition
+        # was added.
+        # Later we may want per-file correctness rather than per-project.
+        completion["correct"] = (
+            type_checks
+            and original_untyped == output_untyped
+            and (annotations_added + definitions_added) >= 1
         )
 
         return p_idx, c_idx, completion
