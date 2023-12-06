@@ -287,8 +287,9 @@ def run_evaluation(config: Config, args: argparse.Namespace):
     tokenizer = Tokenizer(model_path)
 
     # If we already processed this, early return
-    if all(len(c.keys()) > 3 for r in dataset["results"] for c in r):
-        print(f"Skipping {results_path} because it was already processed\n")
+    eval_output = config.eval_output_path(args.results_directory)
+    if Path(eval_output).exists():
+        print(f"Skipping because evaluation output {eval_output} already exists\n")
         return
 
     # We can't update the dataset directly, so save the results in a map
@@ -335,7 +336,6 @@ def run_evaluation(config: Config, args: argparse.Namespace):
     )
 
     # Save dataset
-    eval_output = config.eval_output_path(args.results_directory)
     util.save_dataset(dataset, eval_output, args.workers)
     print()
 
