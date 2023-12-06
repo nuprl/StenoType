@@ -281,6 +281,9 @@ def _evaluate_completion(
 
 def run_evaluation(config: Config, args: argparse.Namespace):
     results_path = config.infer_output_path(args.results_directory)
+    if not Path(results_path).exists():
+        print(f"Error: results file does not exist: {results_path}")
+        exit(1)
     dataset = util.load_dataset(results_path)
 
     model_path = util.get_model_path(config.model_name, args.models_directory)
