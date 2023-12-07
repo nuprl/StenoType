@@ -221,13 +221,13 @@ def _evaluate_files(
         output_types = set(transform.get_type_definition_names(file_content))
         definitions_added = len(output_types - original_types)
         definitions_used = transform.get_used_type_definitions(file_content)
-        annotations_undefined = transform.get_undefined_type_names(file_content)
+        types_undefined = transform.get_undefined_type_names(file_content)
         file_results[file]["num_definitions_added"] = definitions_added
         file_results[file]["num_definitions_used"] = len(definitions_used)
-        file_results[file]["num_definitions_undefined"] = len(annotations_undefined)
+        file_results[file]["num_types_undefined"] = len(types_undefined)
         file_results[file]["type_definitions"] = output_types
         file_results[file]["type_definitions_used"] = definitions_used
-        file_results[file]["type_annotations_undefined"] = annotations_undefined
+        file_results[file]["types_undefined"] = types_undefined
 
         # For now, "correct" means no errors, original_untyped is the same as
         # output_untyped, and at least one annotation or definition was added
@@ -280,11 +280,11 @@ def _evaluate_completion(
 
 
 def run_evaluation(config: Config, args: argparse.Namespace):
-    results_path = config.infer_output_path(args.results_directory)
-    if not Path(results_path).exists():
-        print(f"Error: results file does not exist: {results_path}")
+    inference_output = config.infer_output_path(args.results_directory)
+    if not Path(inference_output).exists():
+        print(f"Error: results file does not exist: {inference_output}")
         exit(1)
-    dataset = util.load_dataset(results_path)
+    dataset = util.load_dataset(inference_output)
 
     model_path = util.get_model_path(config.model_name, args.models_directory)
     tokenizer = Tokenizer(model_path)
@@ -292,10 +292,10 @@ def run_evaluation(config: Config, args: argparse.Namespace):
     # If we already processed this, early return
     eval_output = config.eval_output_path(args.results_directory)
     if Path(eval_output).exists():
-        print(f"Skipping because evaluation output {eval_output} already exists\n")
+        print(f"Skipping; configuration was already evaluated: {config.filename}\n")
         return
 
-    # We can't update the dataset directly, so save the results in a map
+    # We can't update the dataset directly, so save the results in a list of maps
     results: list[dict[int, Any]] = [{} for _ in range(len(dataset))]
 
     # Type checking may require type declarations, so set up a temporary directory

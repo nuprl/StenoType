@@ -56,12 +56,12 @@ class Config:
         self.dataset_config = dataset_config
         self.model_name = model_name
         self.approach = approach
+        self.filename = f"{self.model_name}_{self.approach.__name__}_{self.dataset_config.short_name}"
 
     def _output_path(self, results_directory: str, subdir: str) -> str:
         output_dir = Path(results_directory, subdir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{self.model_name}_{self.approach.__name__}_{self.dataset_config.short_name}"
-        return str(Path(output_dir, filename).with_suffix(".parquet"))
+        return str(Path(output_dir, self.filename).with_suffix(".parquet"))
 
     def infer_output_path(self, results_directory: str) -> str:
         return self._output_path(results_directory, "0_after_infer")
