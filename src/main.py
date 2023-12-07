@@ -3,12 +3,13 @@ import argparse
 import datasets
 import os
 
-from evaluation import run_evaluation, summarize_results
+from evaluation import run_evaluation
 from inference import (
     DatasetConfig as DatasetConf,
     Config,
     run_inference,
 )
+from summarize import summarize
 import inference
 import util
 
@@ -172,7 +173,7 @@ def main():
             run_evaluation(c, args)
 
     if args.summarize:
-        summarize_results(configs, args)
+        summarize(configs, args)
 
 
 if __name__ == "__main__":
