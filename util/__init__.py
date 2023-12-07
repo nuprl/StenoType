@@ -112,12 +112,3 @@ def partition_list(predicate: Callable[[Any], bool], list: list) -> tuple[list, 
             no.append(e)
 
     return yes, no
-
-
-def mean_or_default(list: list, default: Optional[float] = None) -> Optional[float]:
-    if list:
-        return np.mean(list)
-    elif default is not None:
-        return default
-    else:
-        return None
