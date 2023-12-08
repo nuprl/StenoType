@@ -39,7 +39,7 @@ def _mean_or_default(
         return None
 
 
-def _count_and_pct(
+def _count_pct(
     results: list[dict[str, Any]], field: str, total: int, skip_error: bool = True
 ) -> tuple[int, float]:
     if skip_error:
@@ -70,7 +70,7 @@ def _summarize_completion(
         "num_types_undefined",
     ]
     for f in number_fields:
-        completion[f] = np.sum([file[f] for file in file_results])
+        completion[f] = _sum(file_results, f)
 
     set_fields = [
         "type_annotations",
@@ -110,68 +110,52 @@ def _summarize_example(
     for i, completion in enumerate(results):
         results[i] = _summarize_completion(completion, example["content_without_types"])
 
+    summary: dict[str, Any] = {}
     num_completions = len(results)
-    num_parses, pct_parses = _count_and_pct(results, "parses", num_completions)
-    num_type_checks, pct_type_checks = _count_and_pct(
-        results, "type_checks", num_completions
-    )
-    num_correct, pct_correct = _count_and_pct(results, "correct", num_completions)
-    num_failed, pct_failed = _count_and_pct(
+    summary["num_completions"] = num_completions
+
+    count_fields = ["parses", "type_checks", "correct"]
+    for f in count_fields:
+        summary[f"num_{f}"], summary[f"pct_{f}"] = _count_pct(
+            results, f, num_completions
+        )
+    # Can't put this in the loop because we need to rename error -> failed
+    summary["num_failed"], summary["pct_failed"] = _count_pct(
         results, "error", num_completions, skip_error=False
     )
-    pass_1_correct = _pass_at_k(num_completions, num_correct, 1)
+    summary["pass@1_correct"] = _pass_at_k(num_completions, summary["num_correct"], 1)
 
     total_files = _sum(results, "num_files")
     total_errorfree_files = _sum(results, "num_errorfree_files")
+    summary["avg_errors"] = _mean_or_default(results, "num_errors", default=0.0)
+    summary["errors_per_file"] = _sum(results, "num_errors") / total_files
+    summary["pct_errorfree_files"] = total_errorfree_files / total_files
+    summary["pass@1_errorfree"] = _pass_at_k(total_files, total_errorfree_files, 1)
 
-    errors_per_file = _sum(results, "num_errors") / total_files
-    pct_errorfree_files = total_errorfree_files / total_files
-    pass_1_errorfree = _pass_at_k(total_files, total_errorfree_files, 1)
+    avg_fields = [
+        "accuracy",
+        "levenshtein",
+        "untyped_levenshtein",
+        "token_count",
+    ]
+    for f in avg_fields:
+        summary[f"avg_{f}"] = _mean_or_default(results, f, default=0.0)
 
-    avg_accuracy = _mean_or_default(results, "accuracy", default=0.0)
-    avg_levenshtein = _mean_or_default(results, "levenshtein", default=0.0)
-    avg_untyped_levenshtein = _mean_or_default(
-        results, "untyped_levenshtein", default=0.0
-    )
-    avg_token_count = _mean_or_default(results, "token_count", default=0.0)
+    avg_fields_num = [
+        "num_definitions_added",
+        "num_definitions_used",
+        "num_types_undefined",
+    ]
+    for f in avg_fields_num:
+        summary[f.replace("num", "avg")] = _mean_or_default(results, f, default=0.0)
 
-    avg_definitions_added = _mean_or_default(
-        results, "num_definitions_added", default=0.0
-    )
-    avg_definitions_used = _mean_or_default(
-        results, "num_definitions_used", default=0.0
-    )
-    avg_types_undefined = _mean_or_default(results, "num_types_undefined", default=0.0)
-
-    pct_annotations_trivial = _sum(results, "num_annotations_trivial") / _sum(
-        results, "num_annotation_sites"
+    total_annotations_trivial = _sum(results, "num_annotations_trivial")
+    total_annotation_sites = _sum(results, "num_annotation_sites")
+    summary["pct_annotations_trivial"] = (
+        total_annotations_trivial / total_annotation_sites
     )
 
     # TODO: pct_annotations_trivial_in_errorfree_files
-
-    summary = {
-        "num_completions": num_completions,
-        "num_parses": num_parses,
-        "pct_parses": pct_parses,
-        "num_type_checks": num_type_checks,
-        "pct_type_checks": pct_type_checks,
-        "num_correct": num_correct,
-        "pct_correct": pct_correct,
-        "num_failed": num_failed,
-        "pct_failed": pct_failed,
-        "pass@1_correct": pass_1_correct,
-        "errors_per_file": errors_per_file,
-        "pct_errorfree_files": pct_errorfree_files,
-        "pass@1_errorfree": pass_1_errorfree,
-        "avg_accuracy": avg_accuracy,
-        "avg_levenshtein": avg_levenshtein,
-        "avg_untyped_levenshtein": avg_untyped_levenshtein,
-        "avg_token_count": avg_token_count,
-        "avg_definitions_added": avg_definitions_added,
-        "avg_definitions_used": avg_definitions_used,
-        "avg_types_undefined": avg_types_undefined,
-        "pct_annotations_trivial": pct_annotations_trivial,
-    }
 
     return idx, results, summary
 
