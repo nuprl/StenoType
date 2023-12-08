@@ -86,7 +86,31 @@ def _summarize_completion(
         [None for file in file_results if not file["errors"]]
     )
 
-    # TODO: pct_annotations_trivial_in_errorfree_files
+    completion["pct_annotations_trivial"] = (
+        0
+        if completion["num_annotations_added"] == 0
+        else (
+            completion["num_annotations_trivial"] / completion["num_annotations_added"]
+        )
+    )
+
+    tot_ann_trivial_errorfree = int(
+        np.sum(
+            [f["num_annotations_trivial"] for f in file_results if f["num_errors"] == 0]
+        )
+    )
+    tot_ann_added_errorfree = int(
+        np.sum(
+            [f["num_annotations_added"] for f in file_results if f["num_errors"] == 0]
+        )
+    )
+    completion["num_annotations_trivial_errorfree_files"] = tot_ann_trivial_errorfree
+    completion["num_annotations_added_errorfree_files"] = tot_ann_added_errorfree
+    completion["pct_annotations_trivial_errorfree_files"] = (
+        0
+        if tot_ann_added_errorfree == 0
+        else (tot_ann_trivial_errorfree / tot_ann_added_errorfree)
+    )
 
     completion["errors_per_file"] = completion["num_errors"] / completion["num_files"]
 
@@ -150,12 +174,24 @@ def _summarize_example(
         summary[f.replace("num", "avg")] = _mean_or_default(results, f, default=0.0)
 
     total_annotations_trivial = _sum(results, "num_annotations_trivial")
-    total_annotation_sites = _sum(results, "num_annotation_sites")
+    total_annotations_added = _sum(results, "num_annotations_added")
+    summary["num_annotations_trivial"] = total_annotations_trivial
+    summary["num_annotations_added"] = total_annotations_added
     summary["pct_annotations_trivial"] = (
-        total_annotations_trivial / total_annotation_sites
+        0
+        if total_annotations_added == 0
+        else (total_annotations_trivial / total_annotations_added)
     )
 
-    # TODO: pct_annotations_trivial_in_errorfree_files
+    tot_ann_trivial_errorfree = _sum(results, "num_annotations_trivial_errorfree_files")
+    tot_ann_added_errorfree = _sum(results, "num_annotations_added_errorfree_files")
+    summary["num_annotations_trivial_errorfree_files"] = tot_ann_trivial_errorfree
+    summary["num_annotations_added_errorfree_files"] = tot_ann_added_errorfree
+    summary["pct_annotations_trivial_errorfree_files"] = (
+        0
+        if tot_ann_added_errorfree == 0
+        else (tot_ann_trivial_errorfree / tot_ann_added_errorfree)
+    )
 
     return idx, results, summary
 
