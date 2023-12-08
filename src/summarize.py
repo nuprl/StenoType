@@ -166,6 +166,9 @@ def _summarize_example(
         summary[f"avg_{f}"] = _mean_or_default(results, f, default=0.0)
 
     avg_fields_num = [
+        "num_annotation_sites",
+        "num_annotations_added",
+        "num_annotations_trivial",
         "num_definitions_added",
         "num_definitions_used",
         "num_types_undefined",
