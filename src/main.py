@@ -64,21 +64,29 @@ def parse_args() -> argparse.Namespace:
         help="run inference (on the configurations indexed by [CONFIG ...], "
         "or all configurations if no indices given)",
     )
-    group.add_argument("--evaluate", action="store_true", help="evaluate results")
+    group.add_argument(
+        "--evaluate",
+        nargs="*",
+        metavar="CONFIG",
+        help="run evaluation (on the configurations indexed by [CONFIG ...], "
+        "or all configurations if no indices given)",
+    )
     group.add_argument("--summarize", action="store_true", help="summarize results")
     group.add_argument(
         "--show_configs",
         action="store_true",
-        help="print configuration indices (to be used with --infer)",
+        help="print configuration indices (to be used with --infer and --evaluate)",
     )
 
     args = parser.parse_args()
 
-    if args.infer is not None and any(not x.isdigit() for x in args.infer):
+    if (args.infer is not None and any(not x.isdigit() for x in args.infer)) or (
+        args.evaluate is not None and any(not x.isdigit() for x in args.evaluate)
+    ):
         print("error: provided indices must be integers")
         exit(2)
 
-    if args.infer is not None or args.evaluate:
+    if args.infer is not None or args.evaluate is not None:
         models_directory = Path(args.models_directory).resolve()
         args.models_directory = str(models_directory)
         if not models_directory.exists():
@@ -94,7 +102,7 @@ def parse_args() -> argparse.Namespace:
 
     if (
         args.infer is None
-        and not args.evaluate
+        and args.evaluate is None
         and not args.summarize
         and not args.show_configs
     ):
@@ -155,21 +163,54 @@ def main():
 
     if args.infer is not None:
         # If indices given, then select only those configs
+        infer_configs = configs
         if args.infer:
-            configs = [configs[int(i)] for i in args.infer]
+            indices = [int(i) for i in args.infer]
+            bad_indices = [i for i in indices if i < 0 or i >= len(configs)]
+            for i in bad_indices:
+                print(f"error: configuration {i} is out of range!")
+            if bad_indices:
+                print(f"Configuration must be >=0 and <={len(configs) - 1}")
+                exit(2)
+            infer_configs = [configs[i] for i in indices]
 
         # Make sure results don't already exist
-        results_paths = [c.infer_output_path(args.results_directory) for c in configs]
+        results_paths = [
+            c.infer_output_path(args.results_directory) for c in infer_configs
+        ]
         results_exists = [path for path in results_paths if Path(path).exists()]
         for p in results_exists:
             print(f"error: output {p} already exists, please delete or rename!")
         if results_exists:
             exit(2)
 
-    for c in configs:
-        if args.infer is not None:
+        for c in infer_configs:
             run_inference(c, args)
+
+    if args.evaluate is not None:
+        # If indices given, then select only those configs
+        eval_configs = configs
         if args.evaluate:
+            indices = [int(i) for i in args.evaluate]
+            bad_indices = [i for i in indices if i < 0 or i >= len(configs)]
+            for i in bad_indices:
+                print(f"error: configuration {i} is out of range!")
+            if bad_indices:
+                print(f"Configuration index must be >=0 and <={len(configs) - 1}")
+                exit(2)
+            eval_configs = [configs[i] for i in indices]
+
+        # Make sure results don't already exist
+        results_paths = [
+            c.eval_output_path(args.results_directory) for c in eval_configs
+        ]
+        results_exists = [path for path in results_paths if Path(path).exists()]
+        for p in results_exists:
+            print(f"error: output {p} already exists, please delete or rename!")
+        if results_exists:
+            exit(2)
+
+        for c in eval_configs:
             run_evaluation(c, args)
 
     if args.summarize:
