@@ -377,5 +377,8 @@ def summarize(configs: list[Config], args: argparse.Namespace):
         print(f"pass@1 (errorfree files): {summary['pass@1_errorfree']:.1%}")
         print()
 
-    path = Path(args.results_directory, "summary.jsonl")
-    util.write_jsonl(path, summaries, util.NpEncoder)
+    jsonl_path = Path(args.results_directory, "summary.jsonl")
+    util.write_jsonl(jsonl_path, summaries, util.NpEncoder)
+
+    csv_path = Path(args.results_directory, "summary.csv")
+    util.write_csv(csv_path, summaries)

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Callable, Generator, Optional, Type
 import datasets
 import json
+import pandas as pd
 import numpy as np
 import os
 
@@ -84,6 +85,18 @@ def write_jsonl(
     with open(path, "w") as f:
         for item in data:
             f.write(json.dumps(item, cls=encoder) + "\n")
+
+
+def read_csv(path: Path | str) -> Generator[dict, None, None]:
+    df = pd.read_csv(path)
+    data = df.to_dict("records")
+    for d in data:
+        yield d
+
+
+def write_csv(path: Path | str, data: Iterable[Any]):
+    df = pd.DataFrame(data)
+    df.to_csv(path, index=False)
 
 
 def get_model_path(model_name: str, models_directory: str) -> str:
