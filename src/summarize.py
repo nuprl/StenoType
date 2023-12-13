@@ -13,12 +13,6 @@ import util
 # (note: a "result" is a single file of a completion of a problem of a dataset)
 # per row of a data frame, and then aggregate using pandas/R.
 
-# TODO: can maybe use some more helpers, but be careful about mixing
-# completion level, problem level, and dataset level
-
-# TODO: Should division by zero return 0 or None or nan? Need to handle these
-# cases, and also cases where data is missing
-
 
 def _pass_at_k(n: int, c: int, k: int) -> float:
     """
@@ -36,33 +30,29 @@ def _pass_at_k(n: int, c: int, k: int) -> float:
     return 1.0 - np.prod(1.0 - k / np.arange(n - c + 1, n + 1))
 
 
-def _mean_or_default(
-    results: list[dict[str, Any]], field: str, default: Optional[float] = None
+def _mean(
+    results: list[dict[str, Any]], field: str, default: float = float("nan")
 ) -> Optional[float]:
-    if values := [r[field] for r in results if not r["error"]]:
+    if values := [r[field] for r in results if not np.isnan(r[field])]:
         # Non-empty list
         return np.mean(values)
-    elif default is not None:
-        # Empty list and we have a default value
+    else:
         return default
-    else:
-        return None
-
-
-def _count_pct(
-    results: list[dict[str, Any]], field: str, total: int, skip_error: bool = True
-) -> tuple[int, float]:
-    if skip_error:
-        count = len([r for r in results if r[field] if not r["error"]])
-    else:
-        count = len([r for r in results if r[field]])
-    pct = 0 if total == 0 else count / total
-
-    return count, pct
 
 
 def _sum(results: list[dict[str, Any]], field: str) -> int:
-    return np.sum([r[field] for r in results])
+    return np.sum([r[field] for r in results if not np.isnan(r[field])])
+
+
+def _count(results: list[dict[str, Any]], field: str) -> int:
+    return len([0 for r in results if r[field]])
+
+
+def _div(numerator: int, denominator: int, default: float = float("nan")) -> float:
+    if denominator != 0:
+        return numerator / denominator
+    else:
+        return default
 
 
 def _summarize_completion(
@@ -92,37 +82,33 @@ def _summarize_completion(
         completion[f] = set([e for file in file_results for e in file[f]])
 
     completion["num_files"] = len(file_results)
+    completion["num_correct_files"] = _count(file_results, "correct")
     completion["num_errorfree_files"] = len(
-        [None for file in file_results if not file["errors"]]
+        [0 for file in file_results if not file["errors"]]
     )
 
-    completion["pct_annotations_trivial"] = (
-        0
-        if completion["num_annotations_added"] == 0
-        else (
-            completion["num_annotations_trivial"] / completion["num_annotations_added"]
-        )
+    completion["pct_annotations_trivial"] = _div(
+        completion["num_annotations_trivial"], completion["num_annotations_added"]
     )
 
-    tot_ann_trivial_errorfree = int(
-        np.sum(
-            [f["num_annotations_trivial"] for f in file_results if f["num_errors"] == 0]
-        )
+    completion["num_annotations_trivial_correct_files"] = int(
+        np.sum([f["num_annotations_trivial"] for f in file_results if f["correct"]])
     )
-    tot_ann_added_errorfree = int(
-        np.sum(
-            [f["num_annotations_added"] for f in file_results if f["num_errors"] == 0]
-        )
+    completion["num_annotations_added_correct_files"] = int(
+        np.sum([f["num_annotations_added"] for f in file_results if f["correct"]])
     )
-    completion["num_annotations_trivial_errorfree_files"] = tot_ann_trivial_errorfree
-    completion["num_annotations_added_errorfree_files"] = tot_ann_added_errorfree
-    completion["pct_annotations_trivial_errorfree_files"] = (
-        0
-        if tot_ann_added_errorfree == 0
-        else (tot_ann_trivial_errorfree / tot_ann_added_errorfree)
+    completion["pct_annotations_trivial_correct_files"] = _div(
+        completion["num_annotations_trivial_correct_files"],
+        completion["num_annotations_added_correct_files"],
     )
 
-    completion["errors_per_file"] = completion["num_errors"] / completion["num_files"]
+    completion["pct_annotation_sites_filled"] = _div(
+        completion["num_annotations_added"], completion["num_annotation_sites"]
+    )
+
+    completion["errors_per_file"] = _div(
+        completion["num_errors"], completion["num_files"]
+    )
 
     # For now, "correct" means type checks, original_untyped is the same as
     # output_untyped, and at least one annotation or definition was added
@@ -150,27 +136,23 @@ def _summarize_example(
 
     count_fields = ["parses", "type_checks", "correct"]
     for f in count_fields:
-        summary[f"num_{f}"], summary[f"pct_{f}"] = _count_pct(
-            results, f, num_completions
-        )
-    # Can't put this in the loop because we need to rename error -> failed
-    summary["num_failed"], summary["pct_failed"] = _count_pct(
-        results, "error", num_completions, skip_error=False
-    )
-    summary["pass@1_correct"] = _pass_at_k(num_completions, summary["num_correct"], 1)
+        count = _count(results, f)
+        summary[f"num_{f}"] = count
+        summary[f"pct_{f}"] = _div(count, num_completions)
 
     total_files = _sum(results, "num_files")
+    total_correct_files = _sum(results, "num_correct_files")
     total_errorfree_files = _sum(results, "num_errorfree_files")
     total_errors = _sum(results, "num_errors")
     summary["tot_files"] = total_files
+    summary["tot_correct_files"] = total_correct_files
     summary["tot_errorfree_files"] = total_errorfree_files
     summary["tot_errors"] = total_errors
-    summary["errors_per_file"] = total_errors / total_files
-    summary["pct_errorfree_files"] = total_errorfree_files / total_files
+    summary["errors_per_file"] = _div(total_errors, total_files)
+    summary["pct_errorfree_files"] = _div(total_errorfree_files, total_files)
 
-    # TODO: errorfree isn't enough, we want types to have been added
-    # Probably want to distinguish project-level correct vs file-level correct
-    summary["pass@1_errorfree"] = _pass_at_k(total_files, total_errorfree_files, 1)
+    summary["pass@1_project"] = _pass_at_k(num_completions, summary["num_correct"], 1)
+    summary["pass@1_files"] = _pass_at_k(total_files, total_correct_files, 1)
 
     avg_fields = [
         "accuracy",
@@ -179,7 +161,7 @@ def _summarize_example(
         "token_count",
     ]
     for f in avg_fields:
-        summary[f"avg_{f}"] = _mean_or_default(results, f, default=0.0)
+        summary[f"avg_{f}"] = _mean(results, f)
 
     avg_fields_num = [
         "num_errors",
@@ -191,27 +173,24 @@ def _summarize_example(
         "num_types_undefined",
     ]
     for f in avg_fields_num:
-        summary[f.replace("num", "avg")] = _mean_or_default(results, f, default=0.0)
+        summary[f.replace("num", "avg")] = _mean(results, f)
 
-    total_annotations_trivial = _sum(results, "num_annotations_trivial")
-    total_annotations_added = _sum(results, "num_annotations_added")
     summary["num_annotation_sites"] = _sum(results, "num_annotation_sites")
-    summary["num_annotations_trivial"] = total_annotations_trivial
-    summary["num_annotations_added"] = total_annotations_added
-    summary["pct_annotations_trivial"] = (
-        0
-        if total_annotations_added == 0
-        else (total_annotations_trivial / total_annotations_added)
+    summary["num_annotations_trivial"] = _sum(results, "num_annotations_trivial")
+    summary["num_annotations_added"] = _sum(results, "num_annotations_added")
+    summary["pct_annotations_trivial"] = _div(
+        summary["num_annotations_trivial"], summary["num_annotations_added"]
     )
 
-    tot_ann_trivial_errorfree = _sum(results, "num_annotations_trivial_errorfree_files")
-    tot_ann_added_errorfree = _sum(results, "num_annotations_added_errorfree_files")
-    summary["num_annotations_trivial_errorfree_files"] = tot_ann_trivial_errorfree
-    summary["num_annotations_added_errorfree_files"] = tot_ann_added_errorfree
-    summary["pct_annotations_trivial_errorfree_files"] = (
-        0
-        if tot_ann_added_errorfree == 0
-        else (tot_ann_trivial_errorfree / tot_ann_added_errorfree)
+    summary["num_annotations_trivial_correct_files"] = _sum(
+        results, "num_annotations_trivial_correct_files"
+    )
+    summary["num_annotations_added_correct_files"] = _sum(
+        results, "num_annotations_added_correct_files"
+    )
+    summary["pct_annotations_trivial_correct_files"] = _div(
+        summary["num_annotations_trivial_correct_files"],
+        summary["num_annotations_added_correct_files"],
     )
 
     return idx, results, summary
@@ -259,36 +238,35 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
         "model": config.filename,
         "num_problems": len(dataset),
     }
+    summaries = dataset["summaries"]
 
-    tot_completions = np.sum([s["num_completions"] for s in dataset["summaries"]])
-    dataset_summary["tot_completions"] = tot_completions
+    dataset_summary["tot_completions"] = _sum(summaries, "num_completions")
 
-    count_fields = ["num_correct", "num_failed", "num_parses", "num_type_checks"]
+    count_fields = ["num_correct", "num_parses", "num_type_checks"]
     for f in count_fields:
-        total = np.sum([s[f] for s in dataset["summaries"]])
+        total = _sum(summaries, f)
         dataset_summary[f.replace("num", "tot")] = total
-        dataset_summary[f.replace("num", "pct")] = total / tot_completions
-    dataset_summary["pass@1_correct"] = _pass_at_k(
-        tot_completions, dataset_summary["tot_correct"], 1
+        dataset_summary[f.replace("num", "pct")] = (
+            total / dataset_summary["tot_completions"]
+        )
+    dataset_summary["pass@1_project"] = _pass_at_k(
+        dataset_summary["tot_completions"], dataset_summary["tot_correct"], 1
     )
 
     count_error_fields = ["tot_files", "tot_errorfree_files", "tot_errors"]
     for f in count_error_fields:
-        dataset_summary[f] = np.sum([s[f] for s in dataset["summaries"]])
+        dataset_summary[f] = _sum(summaries, f)
 
-    total_files = np.sum([s["tot_files"] for s in dataset["summaries"]])
-    total_errorfree_files = np.sum(
-        [s["tot_errorfree_files"] for s in dataset["summaries"]]
-    )
-    total_errors = np.sum([s["tot_errors"] for s in dataset["summaries"]])
+    total_files = _sum(summaries, "tot_files")
+    total_correct_files = _sum(summaries, "tot_correct_files")
+    total_errorfree_files = _sum(summaries, "tot_errorfree_files")
+    total_errors = _sum(summaries, "tot_errors")
     dataset_summary["tot_files"] = total_files
     dataset_summary["tot_errorfree_files"] = total_errorfree_files
     dataset_summary["tot_errors"] = total_errors
-    dataset_summary["errors_per_file"] = total_errors / total_files
-    dataset_summary["pct_errorfree_files"] = total_errorfree_files / total_files
-    dataset_summary["pass@1_errorfree"] = _pass_at_k(
-        total_files, total_errorfree_files, 1
-    )
+    dataset_summary["errors_per_file"] = _div(total_errors, total_files)
+    dataset_summary["pct_errorfree_files"] = _div(total_errorfree_files, total_files)
+    dataset_summary["pass@1_files"] = _pass_at_k(total_files, total_correct_files, 1)
 
     avg_fields = [
         "avg_annotation_sites",
@@ -305,41 +283,26 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
     ]
     for f in avg_fields:
         dataset_summary[f] = np.average(
-            [s[f] for s in dataset["summaries"]],
-            weights=[s["num_completions"] for s in dataset["summaries"]],
+            [s[f] for s in summaries],
+            weights=[s["num_completions"] for s in summaries],
         )
 
-    total_annotations_trivial = np.sum(
-        [s["num_annotations_trivial"] for s in dataset["summaries"]]
-    )
-    total_annotations_added = np.sum(
-        [s["num_annotations_added"] for s in dataset["summaries"]]
-    )
-    dataset_summary["pct_annotations_trivial"] = (
-        0
-        if total_annotations_added == 0
-        else (total_annotations_trivial / total_annotations_added)
+    total_annotations_trivial = _sum(summaries, "num_annotations_trivial")
+    total_annotations_added = _sum(summaries, "num_annotations_added")
+    dataset_summary["pct_annotations_trivial"] = _div(
+        total_annotations_trivial, total_annotations_added
     )
 
-    tot_ann_trivial_errorfree = np.sum(
-        [s["num_annotations_trivial_errorfree_files"] for s in dataset["summaries"]]
-    )
-    tot_ann_added_errorfree = np.sum(
-        [s["num_annotations_added_errorfree_files"] for s in dataset["summaries"]]
-    )
-    dataset_summary["pct_annotations_trivial_errorfree_files"] = (
-        0
-        if tot_ann_added_errorfree == 0
-        else (tot_ann_trivial_errorfree / tot_ann_added_errorfree)
+    tot_ann_trivial_correct = _sum(summaries, "num_annotations_trivial_correct_files")
+    tot_ann_added_correct = _sum(summaries, "num_annotations_added_correct_files")
+    dataset_summary["pct_annotations_trivial_errorfree_files"] = _div(
+        tot_ann_trivial_correct, tot_ann_added_correct
     )
 
-    total_annotation_sites = np.sum(
-        [s["num_annotation_sites"] for s in dataset["summaries"]]
-    )
-    dataset_summary["pct_annotation_sites_filled"] = (
-        0
-        if total_annotation_sites == 0
-        else (total_annotations_added / total_annotation_sites)
+    total_annotation_sites = _sum(summaries, "num_annotation_sites")
+    dataset_summary["pct_annotation_sites_filled"] = _div(
+        total_annotations_added,
+        total_annotation_sites,
     )
 
     return dataset_summary
@@ -354,7 +317,6 @@ def summarize(configs: list[Config], args: argparse.Namespace):
         print(f"===Stats for configuration {config.filename}===")
         print(f"Number of problems: {summary['num_problems']}")
         print(f"Total completions: {summary['tot_completions']}")
-        print(f"Failed: {summary['tot_failed']} ({summary['pct_failed']:.1%})")
 
         print(f"Parses: {summary['tot_parses']} ({summary['pct_parses']:.1%})")
         print(
@@ -373,8 +335,8 @@ def summarize(configs: list[Config], args: argparse.Namespace):
         print(f"Trivial annotations: {summary['pct_annotations_trivial']:.1%}")
         print(f"Definitions used: {summary['avg_definitions_used']:.1f}")
 
-        print(f"pass@1 (correct): {summary['pass@1_correct']:.1%}")
-        print(f"pass@1 (errorfree files): {summary['pass@1_errorfree']:.1%}")
+        print(f"pass@1 (project): {summary['pass@1_project']:.1%}")
+        print(f"pass@1 (files): {summary['pass@1_files']:.1%}")
         print()
 
     jsonl_path = Path(args.results_directory, "summary.jsonl")
