@@ -295,7 +295,7 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
 
     tot_ann_trivial_correct = _sum(summaries, "num_annotations_trivial_correct_files")
     tot_ann_added_correct = _sum(summaries, "num_annotations_added_correct_files")
-    dataset_summary["pct_annotations_trivial_errorfree_files"] = _div(
+    dataset_summary["pct_annotations_trivial_correct_files"] = _div(
         tot_ann_trivial_correct, tot_ann_added_correct
     )
 
