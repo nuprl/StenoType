@@ -193,6 +193,10 @@ def _summarize_example(
         summary["num_annotations_added_correct_files"],
     )
 
+    summary["pct_annotation_sites_filled"] = _div(
+        summary["num_annotations_added"], summary["num_annotation_sites"]
+    )
+
     return idx, results, summary
 
 

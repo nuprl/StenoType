@@ -1,11 +1,10 @@
-from datasets import Dataset, IterableDataset
 from pathlib import Path
-from typing import Self
+from typing import Any, Callable, Self
 import argparse
 import cmd
 import datasets
 import difflib
-import numpy as np
+import os
 import re
 
 import util
@@ -13,6 +12,9 @@ import util
 RED = "\033[31m"
 GREEN = "\033[32m"
 YELLOW = "\033[33m"
+BLUE = "\033[34m"
+MAGENTA = "\033[35m"
+CYAN = "\033[36m"
 RESET = "\033[39m"
 
 INDEX_SPEC_RE = re.compile(r"^(\d+\.\d+|\d+\.|\d+|\.\d+)$")
@@ -53,63 +55,41 @@ class Viewer(cmd.Cmd):
     )
     prompt = "> "
 
-    def __init__(self: Self, dataset: Dataset | IterableDataset):
+    def __init__(self: Self, dataset_path: str, summary_path: str):
         super().__init__()
+        dataset = util.load_dataset(dataset_path)
+
+        config_name = Path(dataset_path).stem
+        summary = [
+            j for j in util.read_jsonl(summary_path) if j["model"] == config_name
+        ]
+        if not summary:
+            print(f"error: could not find config {config_name} in summary.jsonl!")
+            exit(2)
+
         self.dataset = dataset
+        self.summary = summary[0]
 
         self.problem_idx = 0
         self.completion_idx = 0
-        self.total_problems = len(self.dataset)
-        self.problem_completions = len(self.dataset[self.problem_idx]["results"])
-
-        if not all(len(c.keys()) > 2 for r in self.dataset["results"] for c in r):
-            print("error: dataset does not have results!")
-            exit(2)
+        self.total_problems = len(dataset)
+        self.problem_completions = len(dataset[self.problem_idx]["results"])
 
         # Pre-compute dataset summary
-        self.total_completions = len([r for d in dataset for r in d["results"]])
-        self.total_type_checks = np.sum(dataset["num_type_checks"])
-        self.pct_type_checks = (
-            0
-            if self.total_completions == 0
-            else self.total_type_checks / self.total_completions
-        )
-        self.avg_accuracy = np.mean(
-            [r["accuracy"] for d in dataset for r in d["results"] if not r["error"]]
-        )
-        self.avg_levenshtein = np.mean(
-            [r["levenshtein"] for d in dataset for r in d["results"] if not r["error"]]
-        )
-        self.avg_untyped_levenshtein = np.mean(
-            [
-                r["untyped_levenshtein"]
-                for d in dataset
-                for r in d["results"]
-                if not r["error"] and r["untyped_levenshtein"]
-            ]
-        )
-        self.avg_type_errors = np.mean(
-            [r["type_errors"] for d in dataset for r in d["results"] if not r["error"]]
-        )
-        self.avg_parse_errors = np.mean(
-            [r["parse_errors"] for d in dataset for r in d["results"] if not r["error"]]
-        )
-        self.pass_1 = np.mean(dataset["pass@1"])
-
         correct_problems = [
-            str(i)
+            i
             for i, d in enumerate(dataset)
-            if len([r for r in dataset[i]["results"] if r["correct"]]) > 0
+            if len([r for r in d["results"] if r["correct"]]) > 0
         ]
         self.correct_completions = {
-            k: [
-                str(i) for i, r in enumerate(dataset[int(k)]["results"]) if r["correct"]
+            str(k): [
+                str(i) for i, r in enumerate(dataset[k]["results"]) if r["correct"]
             ]
             for k in correct_problems
         }
 
         # Set up aliases
-        self.aliases = {
+        self.aliases: dict[str, Callable[[str], Any]] = {
             "n": self.do_next,
             "j": self.do_next,
             "prev": self.do_previous,
@@ -161,8 +141,7 @@ class Viewer(cmd.Cmd):
         p_idx, c_idx = self.problem_idx, self.completion_idx
         p_tot, c_tot = self.total_problems, self.problem_completions
 
-        example = self.dataset[self.problem_idx]
-        name = example["max_stars_repo_name"] + " " + example["max_stars_repo_path"]
+        name = self.dataset[self.problem_idx]["name"]
 
         self.prompt = (
             f"[problem {p_idx}/{p_tot - 1}]"
@@ -176,18 +155,28 @@ class Viewer(cmd.Cmd):
         Show summary for the current problem.
         """
         example = self.dataset[self.problem_idx]
+        summary = example["summaries"]
 
+        print()
         print("===PROBLEM INFO===")
         print(
-            f"Number of completions: {example['num_completions']}\n"
-            f"Number type checks: {example['num_type_checks']} "
-            f"({example['pct_type_checks']:.1%})\n"
-            f"Average accuracy: {example['avg_accuracy']:.1%}\n"
-            f"Average Levenshtein: {example['avg_levenshtein']:.1%}\n"
-            f"Average untyped Levenshtein (for files that type check): {example['avg_untyped_levenshtein']:.1%}\n"
-            f"Average type errors: {example['avg_type_errors']:.1f}\n"
-            f"Average parse errors: {example['avg_parse_errors']:.1f}\n"
-            f"pass@1: {example['pass@1']:.1%}"
+            f"{summary['num_completions']} completions "
+            f"({summary['pct_correct']:.1%} correct)\n"
+            f"{summary['pct_parses']:.1%} parse and "
+            f"{summary['pct_type_checks']:.1%} type check\n"
+            f"{summary['avg_errors']:.1f} errors per problem and "
+            f"{summary['errors_per_file']:.1f} errors per file\n"
+            f"{summary['avg_levenshtein']:.1%} Levenshtein and "
+            f"{summary['avg_untyped_levenshtein']:.1%} untyped Levenshtein\n"
+            f"{summary['avg_annotations_added']:.1f} annotations added "
+            f"({summary['pct_annotation_sites_filled']:.1%} sites filled and "
+            f"{summary['pct_annotations_trivial']:.1%} trivial annotations)\n"
+            f"{summary['avg_definitions_added']:.1f} definitions added and "
+            f"{summary['avg_definitions_used']:.1f} definitions used "
+            f"({summary['avg_types_undefined']:.1f} types not defined)\n"
+            f"{BLUE}pass@1 (project): {summary['pass@1_project']:.1%}{RESET}\n"
+            f"{BLUE}pass@1 (files): {summary['pass@1_files']:.1%}{RESET}\n",
+            end="",
         )
         if str(self.problem_idx) in self.correct_completions:
             print()
@@ -203,7 +192,7 @@ class Viewer(cmd.Cmd):
             print(GREEN, end="")
             for dlist in dedup.values():
                 print(" ".join(dlist))
-            print(RESET)
+            print(RESET, end="")
 
     def completion_summary(self):
         """
@@ -212,7 +201,34 @@ class Viewer(cmd.Cmd):
         example = self.dataset[self.problem_idx]
         completion = example["results"][self.completion_idx]
 
+        parses = f"{GREEN}YES{RESET}" if completion["parses"] else f"{RED}NO{RESET}"
+        typechecks = (
+            f"{GREEN}YES{RESET}" if completion["type_checks"] else f"{RED}NO{RESET}"
+        )
+        correct = f"{GREEN}YES{RESET}" if completion["correct"] else f"{RED}NO{RESET}"
+
+        print()
         print("===COMPLETION INFO===")
+        print(
+            f"{completion['num_files']} files "
+            f"({completion['num_correct_files']} correct)\n"
+            f"{completion['num_errors']} errors and "
+            f"{completion['errors_per_file']} errors per file\n"
+            f"{completion['levenshtein']:.1%} Levenshtein and "
+            f"{completion['untyped_levenshtein']:.1%} untyped Levenshtein\n"
+            f"{completion['num_annotations_added']} annotations added "
+            f"({completion['pct_annotation_sites_filled']:.1%} sites filled and "
+            f"{completion['pct_annotations_trivial']:.1%} trivial annotations)\n"
+            f"{completion['num_definitions_added']} definitions added "
+            f"{completion['num_definitions_used']} definitions used "
+            f"({completion['num_types_undefined']} types not defined)\n"
+            f"Type annotations: {CYAN}{completion['type_annotations']}{RESET}\n"
+            f"Type definitions: {CYAN}{completion['type_definitions']}{RESET}\n"
+            f"Type definitions used: {CYAN}{completion['type_definitions_used']}{RESET}\n"
+            f"Types not defined: {CYAN}{completion['types_undefined']}{RESET}\n"
+            f"parses ({parses}) and type checks ({typechecks}) and is correct ({correct})\n"
+        )
+        return
         print(
             f"Accuracy: {completion['accuracy']:.1%}\n"
             f"Levenshtein: {completion['levenshtein']:.1%}\n",
@@ -375,23 +391,32 @@ class Viewer(cmd.Cmd):
 
         aliases: s
         """
+        summary = self.summary
         print("===DATASET SUMMARY===")
         print(
-            f"Total completions: {self.total_completions}\n"
-            f"Total type checks: {self.total_type_checks} "
-            f"({self.pct_type_checks:.1%})\n"
-            f"Average accuracy: {self.avg_accuracy:.1%}\n"
-            f"Average Levenshtein: {self.avg_levenshtein:.1%}\n"
-            f"Average untyped Levenshtein: {self.avg_untyped_levenshtein:.1%}\n"
-            f"Average type errors: {self.avg_type_errors:.1f}\n"
-            f"Average parse errors: {self.avg_parse_errors:.1f}\n"
-            f"pass@1: {self.pass_1:.1%}"
+            f"{summary['tot_completions']} completions across "
+            f"{summary['num_problems']} problems\n"
+            f"{summary['pct_parses']:.1%} parse and "
+            f"{summary['pct_type_checks']:.1%} type check\n"
+            f"{summary['avg_errors']:.1f} errors per problem and "
+            f"{summary['errors_per_file']:.1f} errors per file\n"
+            f"{summary['avg_levenshtein']:.1%} Levenshtein and "
+            f"{summary['avg_untyped_levenshtein']:.1%} untyped Levenshtein\n"
+            f"{summary['avg_annotations_added']:.1f} annotations added "
+            f"({summary['pct_annotation_sites_filled']:.1%} sites filled and "
+            f"{summary['pct_annotations_trivial']:.1%} trivial annotations)\n"
+            f"{summary['avg_definitions_added']:.1f} definitions added and "
+            f"{summary['avg_definitions_used']:.1f} definitions used "
+            f"({summary['avg_types_undefined']:.1f} types not defined)\n"
+            f"{BLUE}pass@1 (project): {summary['pass@1_project']:.1%}{RESET}\n"
+            f"{BLUE}pass@1 (files): {summary['pass@1_files']:.1%}{RESET}\n",
+            end="",
         )
+
         if self.correct_completions:
             print()
             print("Correct problems: ", end="")
             print(GREEN + " ".join(self.correct_completions.keys()) + RESET)
-        print()
 
         self.problem_summary()
         self.completion_summary()
@@ -458,13 +483,34 @@ class Viewer(cmd.Cmd):
 
 
 def parse_args() -> argparse.Namespace:
+    results_path = Path(util.ROOT_DIR, "results").resolve()
+    results_relpath = os.path.relpath(results_path)
+
     parser = argparse.ArgumentParser(description="Results viewer for StenoType")
 
+    parser.add_argument(
+        "--results_directory",
+        type=str,
+        default=results_path,
+        help=f"directory containing results and summary; defaults to {results_relpath}",
+    )
     parser.add_argument(
         "--dataset", type=str, required=True, help="path to dataset to view"
     )
 
     args = parser.parse_args()
+
+    results_directory = Path(args.results_directory).resolve()
+    args.results_directory = str(results_directory)
+    if not results_directory.exists():
+        print("error: cannot find results directory:", results_directory)
+        exit(2)
+
+    jsonl_path = Path(args.results_directory, "summary.jsonl")
+    args.summary = jsonl_path
+    if not jsonl_path.exists():
+        print("error: cannot find summary file:", jsonl_path)
+        exit(2)
 
     dataset_path = Path(args.dataset).resolve()
     if not dataset_path.exists():
@@ -477,11 +523,8 @@ def parse_args() -> argparse.Namespace:
 def main():
     # Don't cache datasets
     datasets.disable_caching()
-
     args = parse_args()
-    dataset = util.load_dataset(args.dataset)
-
-    Viewer(dataset).cmdloop()
+    Viewer(args.dataset, args.summary).cmdloop()
 
 
 if __name__ == "__main__":

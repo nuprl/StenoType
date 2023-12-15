@@ -201,6 +201,7 @@ def _evaluate_files(
         file_results[file]["num_errors"] = len(res["errors"])
 
         # Compute type annotation stats
+        # TODO: this broke for a comment, problem 22 completion 0 of ts_dataset
         annotation_text = [
             transform.node_to_str(n.named_children[0])
             for n in transform.extract_type_annotation_nodes(file_content)
