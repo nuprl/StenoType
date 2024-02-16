@@ -162,7 +162,7 @@ class Viewer(cmd.Cmd):
         print(
             f"{summary['num_completions']} completions "
             f"({summary['pct_correct']:.1%} correct)\n"
-            f"{summary['pct_parses']:.1%} parse and "
+            f"{summary['pct_pkg_parses']:.1%} parse and "
             f"{summary['pct_type_checks']:.1%} type check\n"
             f"{summary['avg_errors']:.1f} errors per problem and "
             f"{summary['errors_per_file']:.1f} errors per file\n"
@@ -201,7 +201,7 @@ class Viewer(cmd.Cmd):
         example = self.dataset[self.problem_idx]
         completion = example["results"][self.completion_idx]
 
-        parses = f"{GREEN}YES{RESET}" if completion["parses"] else f"{RED}NO{RESET}"
+        parses = f"{GREEN}YES{RESET}" if completion["pkg_parses"] else f"{RED}NO{RESET}"
         typechecks = (
             f"{GREEN}YES{RESET}" if completion["type_checks"] else f"{RED}NO{RESET}"
         )
@@ -396,7 +396,7 @@ class Viewer(cmd.Cmd):
         print(
             f"{summary['tot_completions']} completions across "
             f"{summary['num_problems']} problems\n"
-            f"{summary['pct_parses']:.1%} parse and "
+            f"{summary['pct_pkg_parses']:.1%} parse and "
             f"{summary['pct_type_checks']:.1%} type check\n"
             f"{summary['avg_errors']:.1f} errors per problem and "
             f"{summary['errors_per_file']:.1f} errors per file\n"
