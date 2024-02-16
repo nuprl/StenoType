@@ -99,6 +99,12 @@ def write_csv(path: Path | str, data: Iterable[Any]):
     df.to_csv(path, index=False)
 
 
+def write_md(path: Path | str, data: Iterable[Any]):
+    df = pd.DataFrame(data)
+    with open(path, "w") as f:
+        f.write(df.to_markdown(index=False))
+
+
 def get_model_path(model_name: str, models_directory: str) -> str:
     return str(Path(models_directory, model_name))
 

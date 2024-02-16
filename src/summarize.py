@@ -348,3 +348,6 @@ def summarize(configs: list[Config], args: argparse.Namespace):
 
     csv_path = Path(args.results_directory, "summary.csv")
     util.write_csv(csv_path, summaries)
+
+    md_path = Path(args.results_directory, "summary.md")
+    util.write_md(md_path, summaries)
