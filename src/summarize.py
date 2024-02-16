@@ -92,15 +92,19 @@ def _summarize_completion(
         completion["num_annotations_trivial"], completion["num_annotations_added"]
     )
 
-    completion["num_annotations_trivial_correct_files"] = int(
-        np.sum([f["num_annotations_trivial"] for f in file_results if f["correct"]])
+    completion["num_annotations_trivial_errorfree_files"] = int(
+        np.sum(
+            [f["num_annotations_trivial"] for f in file_results if f["num_errors"] == 0]
+        )
     )
-    completion["num_annotations_added_correct_files"] = int(
-        np.sum([f["num_annotations_added"] for f in file_results if f["correct"]])
+    completion["num_annotations_added_errorfree_files"] = int(
+        np.sum(
+            [f["num_annotations_added"] for f in file_results if f["num_errors"] == 0]
+        )
     )
-    completion["pct_annotations_trivial_correct_files"] = _div(
-        completion["num_annotations_trivial_correct_files"],
-        completion["num_annotations_added_correct_files"],
+    completion["pct_annotations_trivial_errorfree_files"] = _div(
+        completion["num_annotations_trivial_errorfree_files"],
+        completion["num_annotations_added_errorfree_files"],
     )
 
     completion["pct_annotation_sites_filled"] = _div(
@@ -185,15 +189,15 @@ def _summarize_example(
         summary["num_annotations_trivial"], summary["num_annotations_added"]
     )
 
-    summary["num_annotations_trivial_correct_files"] = _sum(
-        results, "num_annotations_trivial_correct_files"
+    summary["num_annotations_trivial_errorfree_files"] = _sum(
+        results, "num_annotations_trivial_errorfree_files"
     )
-    summary["num_annotations_added_correct_files"] = _sum(
-        results, "num_annotations_added_correct_files"
+    summary["num_annotations_added_errorfree_files"] = _sum(
+        results, "num_annotations_added_errorfree_files"
     )
-    summary["pct_annotations_trivial_correct_files"] = _div(
-        summary["num_annotations_trivial_correct_files"],
-        summary["num_annotations_added_correct_files"],
+    summary["pct_annotations_trivial_errorfree_files"] = _div(
+        summary["num_annotations_trivial_errorfree_files"],
+        summary["num_annotations_added_errorfree_files"],
     )
 
     summary["pct_annotation_sites_filled"] = _div(
@@ -297,22 +301,27 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
             weights=[s["num_completions"] for s in summaries],
         )
 
-    total_annotations_trivial = _sum(summaries, "num_annotations_trivial")
-    total_annotations_added = _sum(summaries, "num_annotations_added")
+    tot_fields = [
+        "num_annotations_trivial",
+        "num_annotations_added",
+        "num_annotations_trivial_errorfree_files",
+        "num_annotations_added_errorfree_files",
+        "num_annotation_sites",
+    ]
+    for f in tot_fields:
+        dataset_summary[f.replace("num", "tot")] = _sum(summaries, f)
+
     dataset_summary["pct_annotations_trivial"] = _div(
-        total_annotations_trivial, total_annotations_added
+        dataset_summary["tot_annotations_trivial"],
+        dataset_summary["tot_annotations_added"],
     )
-
-    tot_ann_trivial_correct = _sum(summaries, "num_annotations_trivial_correct_files")
-    tot_ann_added_correct = _sum(summaries, "num_annotations_added_correct_files")
-    dataset_summary["pct_annotations_trivial_correct_files"] = _div(
-        tot_ann_trivial_correct, tot_ann_added_correct
+    dataset_summary["pct_annotations_trivial_errorfree_files"] = _div(
+        dataset_summary["tot_annotations_trivial_errorfree_files"],
+        dataset_summary["tot_annotations_added_errorfree_files"],
     )
-
-    total_annotation_sites = _sum(summaries, "num_annotation_sites")
     dataset_summary["pct_annotation_sites_filled"] = _div(
-        total_annotations_added,
-        total_annotation_sites,
+        dataset_summary["tot_annotations_added"],
+        dataset_summary["tot_annotation_sites"],
     )
 
     return dataset_summary
