@@ -81,6 +81,18 @@ def _summarize_completion(
     for f in set_fields:
         completion[f] = set([e for file in file_results for e in file[f]])
 
+    sum_if_parses = [
+        "num_annotations_added",
+        "num_annotation_sites",
+        "num_definitions_used",
+        "num_definitions_added",
+        "num_types_undefined",
+    ]
+    for f in sum_if_parses:
+        completion[f"{f}_files_parse"] = int(
+            np.sum([file[f] for file in file_results if file["parses"]])
+        )
+
     completion["num_files"] = len(file_results)
     completion["num_files_parse"] = _count(file_results, "parses")
     completion["num_correct_files"] = _count(file_results, "correct")
@@ -107,8 +119,9 @@ def _summarize_completion(
         completion["num_annotations_added_errorfree_files"],
     )
 
-    completion["pct_annotation_sites_filled"] = _div(
-        completion["num_annotations_added"], completion["num_annotation_sites"]
+    completion["pct_annotation_sites_filled_files_parse"] = _div(
+        completion["num_annotations_added_files_parse"],
+        completion["num_annotation_sites_files_parse"],
     )
 
     completion["errors_per_file"] = _div(
@@ -175,33 +188,42 @@ def _summarize_example(
         "num_annotation_sites",
         "num_annotations_added",
         "num_annotations_trivial",
-        "num_definitions_added",
         "num_definitions_used",
+        "num_definitions_added",
         "num_types_undefined",
     ]
     for f in avg_fields_num:
         summary[f.replace("num", "avg")] = _mean(results, f)
 
-    summary["num_annotation_sites"] = _sum(results, "num_annotation_sites")
-    summary["num_annotations_trivial"] = _sum(results, "num_annotations_trivial")
-    summary["num_annotations_added"] = _sum(results, "num_annotations_added")
+    num_fields = [
+        "num_annotation_sites",
+        "num_annotations_trivial",
+        "num_annotations_added",
+        "num_annotations_trivial_errorfree_files",
+        "num_annotations_added_errorfree_files",
+        "num_annotations_added_files_parse",
+        "num_annotation_sites_files_parse",
+        "num_definitions_added",
+        "num_definitions_used",
+        "num_definitions_added_files_parse",
+        "num_definitions_used_files_parse",
+        "num_types_undefined_files_parse",
+    ]
+    for f in num_fields:
+        summary[f] = _sum(results, f)
+
     summary["pct_annotations_trivial"] = _div(
         summary["num_annotations_trivial"], summary["num_annotations_added"]
     )
 
-    summary["num_annotations_trivial_errorfree_files"] = _sum(
-        results, "num_annotations_trivial_errorfree_files"
-    )
-    summary["num_annotations_added_errorfree_files"] = _sum(
-        results, "num_annotations_added_errorfree_files"
-    )
     summary["pct_annotations_trivial_errorfree_files"] = _div(
         summary["num_annotations_trivial_errorfree_files"],
         summary["num_annotations_added_errorfree_files"],
     )
 
-    summary["pct_annotation_sites_filled"] = _div(
-        summary["num_annotations_added"], summary["num_annotation_sites"]
+    summary["pct_annotation_sites_filled_files_parse"] = _div(
+        summary["num_annotations_added_files_parse"],
+        summary["num_annotation_sites_files_parse"],
     )
 
     return idx, results, summary
@@ -302,11 +324,18 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
         )
 
     tot_fields = [
+        "num_annotation_sites",
         "num_annotations_trivial",
         "num_annotations_added",
         "num_annotations_trivial_errorfree_files",
         "num_annotations_added_errorfree_files",
-        "num_annotation_sites",
+        "num_annotations_added_files_parse",
+        "num_annotation_sites_files_parse",
+        "num_definitions_used",
+        "num_definitions_added",
+        "num_definitions_used_files_parse",
+        "num_definitions_added_files_parse",
+        "num_types_undefined_files_parse",
     ]
     for f in tot_fields:
         dataset_summary[f.replace("num", "tot")] = _sum(summaries, f)
@@ -322,6 +351,18 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
     dataset_summary["pct_annotation_sites_filled"] = _div(
         dataset_summary["tot_annotations_added"],
         dataset_summary["tot_annotation_sites"],
+    )
+    dataset_summary["pct_annotation_sites_filled_files_parse"] = _div(
+        dataset_summary["tot_annotations_added_files_parse"],
+        dataset_summary["tot_annotation_sites_files_parse"],
+    )
+    dataset_summary["pct_definitions_used"] = _div(
+        dataset_summary["tot_definitions_used"],
+        dataset_summary["tot_definitions_added"],
+    )
+    dataset_summary["pct_definitions_used_files_parse"] = _div(
+        dataset_summary["tot_definitions_used_files_parse"],
+        dataset_summary["tot_definitions_added_files_parse"],
     )
 
     return dataset_summary
@@ -350,7 +391,9 @@ def summarize(configs: list[Config], args: argparse.Namespace):
         print(f"Annotations added: {summary['avg_annotations_added']:.1f}")
         print(f"Definitions added: {summary['avg_definitions_added']:.1f}")
 
-        print(f"Annotation sites filled: {summary['pct_annotation_sites_filled']:.1%}")
+        print(
+            f"Annotation sites filled: {summary['pct_annotation_sites_filled_files_parse']:.1%}"
+        )
         print(f"Trivial annotations: {summary['pct_annotations_trivial']:.1%}")
         print(f"Definitions used: {summary['avg_definitions_used']:.1f}")
 
