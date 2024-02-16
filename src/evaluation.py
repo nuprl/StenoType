@@ -200,6 +200,9 @@ def _evaluate_files(
         # Count errors
         file_results[file]["num_errors"] = len(res["errors"])
 
+        # Does the file parse?
+        file_results[file]["parses"] = transform.is_valid_syntax(file_content)
+
         # Compute type annotation stats
         # TODO: this broke for a comment, problem 22 completion 0 of ts_dataset
         annotation_text = [
@@ -264,7 +267,7 @@ def _evaluate_completion(
             original_untyped, output_untyped
         )
 
-        completion["parses"] = transform.is_valid_syntax(output)
+        completion["pkg_parses"] = transform.is_valid_syntax(output)
         type_checks, tsc_logs = _tsc(output, tmpdir)
         completion["type_checks"] = type_checks
         completion["tsc_logs"] = tsc_logs

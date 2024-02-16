@@ -82,6 +82,7 @@ def _summarize_completion(
         completion[f] = set([e for file in file_results for e in file[f]])
 
     completion["num_files"] = len(file_results)
+    completion["num_files_parse"] = _count(file_results, "parses")
     completion["num_correct_files"] = _count(file_results, "correct")
     completion["num_errorfree_files"] = len(
         [0 for file in file_results if not file["errors"]]
@@ -134,17 +135,19 @@ def _summarize_example(
     num_completions = len(results)
     summary["num_completions"] = num_completions
 
-    count_fields = ["parses", "type_checks", "correct"]
+    count_fields = ["pkg_parses", "type_checks", "correct"]
     for f in count_fields:
         count = _count(results, f)
         summary[f"num_{f}"] = count
         summary[f"pct_{f}"] = _div(count, num_completions)
 
     total_files = _sum(results, "num_files")
+    total_parses = _sum(results, "num_files_parse")
     total_correct_files = _sum(results, "num_correct_files")
     total_errorfree_files = _sum(results, "num_errorfree_files")
     total_errors = _sum(results, "num_errors")
     summary["tot_files"] = total_files
+    summary["tot_files_parse"] = total_parses
     summary["tot_correct_files"] = total_correct_files
     summary["tot_errorfree_files"] = total_errorfree_files
     summary["tot_errors"] = total_errors
@@ -246,7 +249,7 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
 
     dataset_summary["tot_completions"] = _sum(summaries, "num_completions")
 
-    count_fields = ["num_correct", "num_parses", "num_type_checks"]
+    count_fields = ["num_correct", "num_pkg_parses", "num_type_checks"]
     for f in count_fields:
         total = _sum(summaries, f)
         dataset_summary[f.replace("num", "tot")] = total
@@ -262,10 +265,13 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
         dataset_summary[f] = _sum(summaries, f)
 
     total_files = _sum(summaries, "tot_files")
+    total_files_parse = _sum(summaries, "tot_files_parse")
     total_correct_files = _sum(summaries, "tot_correct_files")
     total_errorfree_files = _sum(summaries, "tot_errorfree_files")
     total_errors = _sum(summaries, "tot_errors")
     dataset_summary["tot_files"] = total_files
+    dataset_summary["pct_files_parse"] = _div(total_files_parse, total_files)
+    dataset_summary["tot_files_parse"] = total_files_parse
     dataset_summary["tot_errorfree_files"] = total_errorfree_files
     dataset_summary["tot_errors"] = total_errors
     dataset_summary["errors_per_file"] = _div(total_errors, total_files)
@@ -322,7 +328,7 @@ def summarize(configs: list[Config], args: argparse.Namespace):
         print(f"Number of problems: {summary['num_problems']}")
         print(f"Total completions: {summary['tot_completions']}")
 
-        print(f"Parses: {summary['tot_parses']} ({summary['pct_parses']:.1%})")
+        print(f"Parses: {summary['tot_pkg_parses']} ({summary['pct_pkg_parses']:.1%})")
         print(
             f"Type checks: {summary['tot_type_checks']} ({summary['pct_type_checks']:.1%})"
         )
