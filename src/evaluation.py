@@ -223,11 +223,12 @@ def _evaluate_files(
         file_results[file]["type_annotations"] = set(annotation_text)
 
         # Compute type definition stats
-        original_types = set(transform.get_type_definition_names(original_untyped))
-        output_types = set(transform.get_type_definition_names(file_content))
-        definitions_added = len(output_types - original_types)
+        original_types = transform.get_type_definition_names(original_untyped)
+        output_types = transform.get_type_definition_names(file_content)
+        definitions_added = len(set(output_types) - set(original_types))
         definitions_used = transform.get_used_type_definitions(file_content)
         types_undefined = transform.get_undefined_type_names(file_content)
+        file_results[file]["num_definitions"] = len(output_types)
         file_results[file]["num_definitions_added"] = definitions_added
         file_results[file]["num_definitions_used"] = len(definitions_used)
         file_results[file]["num_types_undefined"] = len(types_undefined)

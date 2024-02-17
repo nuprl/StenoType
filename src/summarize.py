@@ -64,6 +64,7 @@ def _summarize_completion(
         "num_annotation_sites",
         "num_annotations_added",
         "num_annotations_trivial",
+        "num_definitions",
         "num_definitions_added",
         "num_definitions_used",
         "num_errors",
@@ -84,8 +85,9 @@ def _summarize_completion(
     sum_if_parses = [
         "num_annotations_added",
         "num_annotation_sites",
-        "num_definitions_used",
+        "num_definitions",
         "num_definitions_added",
+        "num_definitions_used",
         "num_types_undefined",
     ]
     for f in sum_if_parses:
@@ -188,8 +190,9 @@ def _summarize_example(
         "num_annotation_sites",
         "num_annotations_added",
         "num_annotations_trivial",
-        "num_definitions_used",
+        "num_definitions",
         "num_definitions_added",
+        "num_definitions_used",
         "num_types_undefined",
     ]
     for f in avg_fields_num:
@@ -203,8 +206,10 @@ def _summarize_example(
         "num_annotations_added_errorfree_files",
         "num_annotations_added_files_parse",
         "num_annotation_sites_files_parse",
+        "num_definitions",
         "num_definitions_added",
         "num_definitions_used",
+        "num_definitions_files_parse",
         "num_definitions_added_files_parse",
         "num_definitions_used_files_parse",
         "num_types_undefined_files_parse",
@@ -331,10 +336,12 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
         "num_annotations_added_errorfree_files",
         "num_annotations_added_files_parse",
         "num_annotation_sites_files_parse",
-        "num_definitions_used",
+        "num_definitions",
         "num_definitions_added",
-        "num_definitions_used_files_parse",
+        "num_definitions_used",
+        "num_definitions_files_parse",
         "num_definitions_added_files_parse",
+        "num_definitions_used_files_parse",
         "num_types_undefined_files_parse",
     ]
     for f in tot_fields:
@@ -356,13 +363,21 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
         dataset_summary["tot_annotations_added_files_parse"],
         dataset_summary["tot_annotation_sites_files_parse"],
     )
+    dataset_summary["pct_definitions_added"] = _div(
+        dataset_summary["tot_definitions_added"],
+        dataset_summary["tot_definitions"],
+    )
+    dataset_summary["pct_definitions_added_files_parse"] = _div(
+        dataset_summary["tot_definitions_added_files_parse"],
+        dataset_summary["tot_definitions_files_parse"],
+    )
     dataset_summary["pct_definitions_used"] = _div(
         dataset_summary["tot_definitions_used"],
-        dataset_summary["tot_definitions_added"],
+        dataset_summary["tot_definitions"],
     )
     dataset_summary["pct_definitions_used_files_parse"] = _div(
         dataset_summary["tot_definitions_used_files_parse"],
-        dataset_summary["tot_definitions_added_files_parse"],
+        dataset_summary["tot_definitions_files_parse"],
     )
 
     return dataset_summary
