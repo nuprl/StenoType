@@ -222,6 +222,8 @@ def _evaluate_files(
         )
         file_results[file]["type_annotations"] = set(annotation_text)
 
+        file_results[file]["unchanged"] = original_untyped == file_content
+
         # Compute type definition stats
         original_types = transform.get_type_definition_names(original_untyped)
         output_types = transform.get_type_definition_names(file_content)
@@ -265,8 +267,8 @@ def _evaluate_completion(
         output_untyped = transform.delete_types(output)
 
         completion["token_count"] = len(tokenizer(output))
-        completion["accuracy"] = _accuracy(tokenizer.tokenizer, original, output)
-        completion["levenshtein"] = _levenshtein(original, output)
+        completion["accuracy"] = _accuracy(tokenizer.tokenizer, original_untyped, output)
+        completion["levenshtein"] = _levenshtein(original_untyped, output)
         completion["untyped_levenshtein"] = _levenshtein(
             original_untyped, output_untyped
         )
@@ -275,6 +277,8 @@ def _evaluate_completion(
         type_checks, tsc_logs = _tsc(output, tmpdir)
         completion["type_checks"] = type_checks
         completion["tsc_logs"] = tsc_logs
+
+        completion["pkg_unchanged"] = original_untyped == output
 
         # Get per-file results
         files_results = _evaluate_files(name, original, output, tsc_logs)

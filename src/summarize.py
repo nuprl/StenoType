@@ -101,6 +101,7 @@ def _summarize_completion(
     completion["num_errorfree_files"] = len(
         [0 for file in file_results if not file["errors"]]
     )
+    completion["num_files_unchanged"] = _count(file_results, "unchanged")
 
     completion["pct_annotations_trivial"] = _div(
         completion["num_annotations_trivial"], completion["num_annotations_added"]
@@ -154,7 +155,7 @@ def _summarize_example(
     num_completions = len(results)
     summary["num_completions"] = num_completions
 
-    count_fields = ["pkg_parses", "type_checks", "correct"]
+    count_fields = ["pkg_parses", "type_checks", "correct", "pkg_unchanged"]
     for f in count_fields:
         count = _count(results, f)
         summary[f"num_{f}"] = count
@@ -164,11 +165,13 @@ def _summarize_example(
     total_parses = _sum(results, "num_files_parse")
     total_correct_files = _sum(results, "num_correct_files")
     total_errorfree_files = _sum(results, "num_errorfree_files")
+    total_unchanged_files = _sum(results, "num_files_unchanged")
     total_errors = _sum(results, "num_errors")
     summary["tot_files"] = total_files
     summary["tot_files_parse"] = total_parses
     summary["tot_correct_files"] = total_correct_files
     summary["tot_errorfree_files"] = total_errorfree_files
+    summary["tot_files_unchanged"] = total_unchanged_files
     summary["tot_errors"] = total_errors
     summary["errors_per_file"] = _div(total_errors, total_files)
     summary["pct_errorfree_files"] = _div(total_errorfree_files, total_files)
@@ -280,7 +283,7 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
 
     dataset_summary["tot_completions"] = _sum(summaries, "num_completions")
 
-    count_fields = ["num_correct", "num_pkg_parses", "num_type_checks"]
+    count_fields = ["num_correct", "num_pkg_parses", "num_type_checks", "num_pkg_unchanged"]
     for f in count_fields:
         total = _sum(summaries, f)
         dataset_summary[f.replace("num", "tot")] = total
@@ -299,11 +302,13 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
     total_files_parse = _sum(summaries, "tot_files_parse")
     total_correct_files = _sum(summaries, "tot_correct_files")
     total_errorfree_files = _sum(summaries, "tot_errorfree_files")
+    total_files_unchanged = _sum(summaries, "tot_files_unchanged")
     total_errors = _sum(summaries, "tot_errors")
     dataset_summary["tot_files"] = total_files
     dataset_summary["pct_files_parse"] = _div(total_files_parse, total_files)
     dataset_summary["tot_files_parse"] = total_files_parse
     dataset_summary["tot_errorfree_files"] = total_errorfree_files
+    dataset_summary["tot_files_unchanged"] = total_files_unchanged
     dataset_summary["tot_errors"] = total_errors
     dataset_summary["errors_per_file"] = _div(total_errors, total_files)
     dataset_summary["pct_errorfree_files"] = _div(total_errorfree_files, total_files)
@@ -347,6 +352,10 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
     for f in tot_fields:
         dataset_summary[f.replace("num", "tot")] = _sum(summaries, f)
 
+    dataset_summary["pct_files_unchanged"] = _div(
+        dataset_summary["tot_files_unchanged"],
+        dataset_summary["tot_files"],
+    )
     dataset_summary["pct_annotations_trivial"] = _div(
         dataset_summary["tot_annotations_trivial"],
         dataset_summary["tot_annotations_added"],
