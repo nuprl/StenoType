@@ -267,7 +267,9 @@ def _evaluate_completion(
         output_untyped = transform.delete_types(output)
 
         completion["token_count"] = len(tokenizer(output))
-        completion["accuracy"] = _accuracy(tokenizer.tokenizer, original_untyped, output)
+        completion["accuracy"] = _accuracy(
+            tokenizer.tokenizer, original_untyped, output
+        )
         completion["levenshtein"] = _levenshtein(original_untyped, output)
         completion["untyped_levenshtein"] = _levenshtein(
             original_untyped, output_untyped

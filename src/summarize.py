@@ -283,7 +283,12 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
 
     dataset_summary["tot_completions"] = _sum(summaries, "num_completions")
 
-    count_fields = ["num_correct", "num_pkg_parses", "num_type_checks", "num_pkg_unchanged"]
+    count_fields = [
+        "num_correct",
+        "num_pkg_parses",
+        "num_type_checks",
+        "num_pkg_unchanged",
+    ]
     for f in count_fields:
         total = _sum(summaries, f)
         dataset_summary[f.replace("num", "tot")] = total
