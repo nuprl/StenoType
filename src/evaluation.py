@@ -297,6 +297,11 @@ def run_evaluation(config: Config, args: argparse.Namespace):
     if not Path(inference_output).exists():
         print(f"Error: results file does not exist: {inference_output}")
         exit(1)
+
+    if config.model_name == "tsc":
+        print("Evaluation for tsc migration is not supported.")
+        return
+
     dataset = util.load_dataset(inference_output)
 
     model_path = util.get_model_path(config.model_name, args.models_directory)

@@ -1,13 +1,23 @@
 from datasets import Dataset, IterableDataset
 from pathlib import Path
+from subprocess import DEVNULL, PIPE
 from typing import Any, Callable, Optional
 import argparse
 import functools
 import random
+import shutil
+import subprocess
+import tarfile
+import tempfile
 
 from model import Model
 from util import transform
 import util
+
+TSC_PATH = shutil.which("tsc")
+if not TSC_PATH:
+    print("Could not find tsc")
+    exit(1)
 
 
 class DatasetConfig:
@@ -50,13 +60,16 @@ class Config:
     def __init__(
         self,
         model_name: str,
-        approach: Callable[[Model, int, str], list[str]],
+        approach: Optional[Callable[[Model, int, str], list[str]]],
         dataset_config: DatasetConfig,
     ):
         self.dataset_config = dataset_config
         self.model_name = model_name
         self.approach = approach
-        self.filename = f"{self.model_name}_{self.approach.__name__}_{self.dataset_config.short_name}"
+        self.approach_name = self.approach.__name__ if self.approach else ""
+        self.filename = (
+            f"{self.model_name}_{self.approach_name}_{self.dataset_config.short_name}"
+        )
 
     def _output_path(self, results_directory: str, subdir: str) -> str:
         output_dir = Path(results_directory, subdir)
@@ -260,7 +273,7 @@ def _add_name_column(example: dict[str, Any]) -> dict[str, Any]:
 def _run_inference(
     dataset: Dataset | IterableDataset,
     model: Model,
-    approach: Callable[[Model, int, str], list[str]],
+    approach: Optional[Callable[[Model, int, str], list[str]]],
     num_completions: int,
     workers: int,
 ) -> Dataset | IterableDataset:
@@ -295,16 +308,112 @@ def _run_inference(
     return dataset
 
 
+def _run_tsc_on_example(
+    example: dict[str, Any],
+    tmpdir: str,
+    is_js: bool,
+) -> dict[str, Any]:
+    stripped = example["content_without_types"]
+
+    extension = ".js" if is_js else ".ts"
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=extension, dir=tmpdir, encoding="utf-8"
+    ) as f:
+        print(stripped, file=f, end="", flush=True)
+        tmpfile = Path(f.name)
+
+        # Run tsc on temp file
+        args = [
+            str(TSC_PATH),
+            "--declaration",
+            "--allowJs",
+            "--emitDeclarationOnly",
+            "--esModuleInterop",
+            "--moduleResolution", "node",
+            "--target", "es2022",
+            "--lib", "es2022,dom",
+            str(tmpfile),
+        ]  # fmt: skip
+        result = subprocess.run(
+            args, stdout=PIPE, stderr=DEVNULL, encoding="utf-8", cwd=tmpdir
+        )
+
+        dts_file = tmpfile.with_suffix(".d.ts")
+        if dts_file.exists():
+            # Need to read .d.ts file
+            with open(tmpfile.with_suffix(".d.ts"), "r") as dts:
+                dts_contents = dts.read()
+        else:
+            dts_contents = ""
+
+        example["results"] = [
+            {
+                "output": dts_contents,
+                "errors": result.stdout,
+                "error": dts_contents == "",
+            }
+        ]
+
+        tmpfile.with_suffix(".d.ts").unlink(missing_ok=True)
+
+    return example
+
+
+def _run_tsc_inference(
+    dataset: Dataset | IterableDataset,
+    type_decls: Optional[str],
+    workers: int,
+) -> Dataset | IterableDataset:
+    # Remove type annotations and definitions, add as new column
+    dataset = dataset.map(
+        _add_column_without_types, num_proc=workers, desc="Removing types"
+    )
+
+    with util.timer():
+        with tempfile.TemporaryDirectory() as tmpdir:
+            if type_decls:
+                with tarfile.open(type_decls) as tar:
+                    tar.extractall(tmpdir)
+
+            dataset = dataset.map(
+                functools.partial(
+                    _run_tsc_on_example,
+                    tmpdir=tmpdir,
+                    is_js=type_decls is not None,
+                ),
+                num_proc=workers,
+                desc="Inferring types",
+            )
+
+    # Add "name" column if dataset is from the Stack
+    if (
+        "max_stars_repo_name" in dataset.column_names
+        and "max_stars_repo_name" in dataset.column_names
+    ):
+        dataset = dataset.map(_add_name_column, num_proc=workers)
+
+    # Only keep the minimum necessary columns
+    dataset = dataset.select_columns(
+        ["name", "content", "content_without_types", "results"]
+    )
+
+    return dataset
+
+
 def run_inference(config: Config, args: argparse.Namespace):
     results_path = config.infer_output_path(args.results_directory)
 
-    model_path = util.get_model_path(config.model_name, args.models_directory)
     dataset = config.dataset_config.get()
-
-    with Model(model_path) as model:
-        dataset = _run_inference(
-            dataset, model, config.approach, args.num_completions, args.workers
+    if config.model_name == "tsc":
+        dataset = _run_tsc_inference(
+            dataset, config.dataset_config.type_decls, args.workers
         )
+    else:
+        model_path = util.get_model_path(config.model_name, args.models_directory)
+        with Model(model_path) as model:
+            dataset = _run_inference(
+                dataset, model, config.approach, args.num_completions, args.workers
+            )
 
     # Save results to disk
     util.save_dataset(dataset, results_path, args.workers)
