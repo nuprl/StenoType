@@ -97,6 +97,7 @@ graph_pkg_file <- function(tbl) {
   tbl$Model <- factor(tbl$Model, levels=c("StarCoder-7B\nSingle",
                                           "StarCoder-7B\nMulti",
                                           "StenoType-7B\nMulti"))
+  tbl$Dataset <- factor(tbl$Dataset, levels=c("TS-Sourced", "JS-Sourced"))
   tbl %>%
     ggplot(aes(x=Model, y=Percent, fill=Dataset)) +
       geom_bar(stat="identity", position=position_dodge()) +
@@ -114,6 +115,7 @@ graph_file <- function(tbl) {
   tbl$Model <- factor(tbl$Model, levels=c("StarCoder-7B\nSingle",
                                           "StarCoder-7B\nMulti",
                                           "StenoType-7B\nMulti"))
+  tbl$Dataset <- factor(tbl$Dataset, levels=c("TS-Sourced", "JS-Sourced"))
   tbl %>%
     ggplot(aes(x=Model, y=Percent, fill=Dataset)) +
     geom_bar(stat="identity", position=position_dodge()) +
@@ -134,8 +136,8 @@ summary_data <- read_csv(paste0(results_dir, "/", "summary.csv"),
 # Split out and rename the dataset
 summary_data <- summary_data %>%
   separate_wider_regex(model, c(model = ".*", "_", dataset="ts|js")) %>%
-  mutate(dataset=case_when(str_equal(dataset, "ts") ~ "Untyped",
-                           str_equal(dataset, "js") ~ "Untyped-Hard")) %>%
+  mutate(dataset=case_when(str_equal(dataset, "ts") ~ "TS-Sourced",
+                           str_equal(dataset, "js") ~ "JS-Sourced")) %>%
   rename(Dataset = dataset)
 
 # Rename models
