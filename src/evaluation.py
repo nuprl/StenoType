@@ -213,13 +213,9 @@ def _evaluate_files(
             file_content, exclude_child_annotations=True
         )
         file_results[file]["num_annotations_added"] = annotations_added
-        file_results[file]["num_annotations_trivial"] = len(
-            [
-                a
-                for a in annotation_text
-                if a == "any" or a == "Array<any>" or a == "any[]" or a == "Function"
-            ]
-        )
+        file_results[file][
+            "num_annotations_trivial"
+        ] = transform.count_trivial_annotations(file_content)
         file_results[file]["type_annotations"] = set(annotation_text)
 
         file_results[file]["unchanged"] = original_untyped == file_content

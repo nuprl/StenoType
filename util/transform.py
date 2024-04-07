@@ -136,6 +136,7 @@ def split_at_annotation_locations(
     return chunks
 
 
+@lru_cache(maxsize=32)
 def count_annotation_sites(s: str, exclude_child_annotations: bool = False) -> int:
     """
     Returns the number annotation sites in the given TypeScript program.
@@ -147,6 +148,21 @@ def count_annotation_sites(s: str, exclude_child_annotations: bool = False) -> i
         s, exclude_child_annotations=exclude_child_annotations
     )
     return len(chunks) - 1
+
+
+def count_trivial_annotations(s: str) -> int:
+    """
+    Returns the number of trivial type annotations in the given TypeScript program.
+    A trivial type annotation is any, Array<any>, any[], or Function.
+    """
+    nodes = extract_type_annotation_nodes(s)
+    annotation_text = [node_to_str(n.named_children[0]) for n in nodes]
+    trivial = [
+        a
+        for a in annotation_text
+        if a == "any" or a == "Array<any>" or a == "any[]" or a == "Function"
+    ]
+    return len(trivial)
 
 
 def slice_input(content: str, slice_length: int) -> list[str]:
@@ -245,6 +261,7 @@ def _is_child_type_annotation(start_node: Node) -> bool:
     return False
 
 
+@lru_cache(maxsize=32)
 def extract_type_annotation_nodes(content: str) -> list[Node]:
     """
     Returns a list of nodes, representing type annotations from the given string.
@@ -269,6 +286,7 @@ def delete_type_annotations(content: str) -> str:
     return _delete_nodes(content, nodes)
 
 
+@lru_cache(maxsize=32)
 def extract_type_definition_nodes(
     content: str, include_classes: bool = False
 ) -> list[Node]:
