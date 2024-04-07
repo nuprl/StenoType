@@ -218,6 +218,11 @@ def _evaluate_files(
         ] = transform.count_trivial_annotations(file_content)
         file_results[file]["type_annotations"] = set(annotation_text)
 
+        # Record the original file's trivial annotations
+        file_results[file][
+            "num_annotations_trivial_original"
+        ] = transform.count_trivial_annotations(original)
+
         file_results[file]["unchanged"] = original_untyped == file_content
 
         # Compute type definition stats

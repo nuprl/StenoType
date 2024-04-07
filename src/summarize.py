@@ -64,6 +64,7 @@ def _summarize_completion(
         "num_annotation_sites",
         "num_annotations_added",
         "num_annotations_trivial",
+        "num_annotations_trivial_original",
         "num_definitions",
         "num_definitions_added",
         "num_definitions_used",
@@ -110,6 +111,11 @@ def _summarize_completion(
     completion["num_annotations_trivial_errorfree_files"] = int(
         np.sum(
             [f["num_annotations_trivial"] for f in file_results if f["num_errors"] == 0]
+        )
+    )
+    completion["num_annotations_trivial_original_errorfree_files"] = int(
+        np.sum(
+            [f["num_annotations_trivial_original"] for f in file_results if f["num_errors"] == 0]
         )
     )
     completion["num_annotations_added_errorfree_files"] = int(
@@ -193,6 +199,7 @@ def _summarize_example(
         "num_annotation_sites",
         "num_annotations_added",
         "num_annotations_trivial",
+        "num_annotations_trivial_original",
         "num_definitions",
         "num_definitions_added",
         "num_definitions_used",
@@ -204,8 +211,10 @@ def _summarize_example(
     num_fields = [
         "num_annotation_sites",
         "num_annotations_trivial",
+        "num_annotations_trivial_original",
         "num_annotations_added",
         "num_annotations_trivial_errorfree_files",
+        "num_annotations_trivial_original_errorfree_files",
         "num_annotations_added_errorfree_files",
         "num_annotations_added_files_parse",
         "num_annotation_sites_files_parse",
@@ -323,6 +332,7 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
         "avg_annotation_sites",
         "avg_annotations_added",
         "avg_annotations_trivial",
+        "avg_annotations_trivial_original",
         "avg_definitions_added",
         "avg_definitions_used",
         "avg_types_undefined",
@@ -342,7 +352,9 @@ def _summarize_dataset(config: Config, args: argparse.Namespace) -> dict[str, An
         "num_annotation_sites",
         "num_annotations_trivial",
         "num_annotations_added",
+        "num_annotations_trivial_original",
         "num_annotations_trivial_errorfree_files",
+        "num_annotations_trivial_original_errorfree_files",
         "num_annotations_added_errorfree_files",
         "num_annotations_added_files_parse",
         "num_annotation_sites_files_parse",
