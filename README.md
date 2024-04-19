@@ -3,6 +3,14 @@
 Type migration with large language models for code. Migrates JavaScript to
 TypeScript by predicting type annotations and generating type definitions.
 
+This is the code repository for the dissertation [Predicting TypeScript Type
+Annotations and Definitions With Machine
+Learning](https://www.proquest.com/dissertations-theses/predicting-typescript-type-annotations/docview/3039686939/se-2),
+specifically, Chapter 5.
+
+Figures and result summaries are in the `results/` directory. Full results are
+on [Hugging Face](https://huggingface.co/datasets/nuprl/stenotype-results).
+
 ## Instructions
 
 1. Clone the repository:
