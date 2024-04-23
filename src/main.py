@@ -126,19 +126,9 @@ def main():
         dataset_name="stenotype-eval-dataset-subset",
     )
     configs += [
-        # Config("starcoderbase-1b", inference.approach1, ts_dataset),
-        # Config("stenotype-1b-75ce914-ckpt100", inference.approach1, ts_dataset),
-        # Config("stenotype-1b-54d5802-ckpt100", inference.approach2, ts_dataset),
-        # Config("stenotype-1b-2b77ede-ckpt100", inference.approach3, ts_dataset),
-        # Config("starcoderbase-1b", inference.approach4, ts_dataset),
-        # Config("stenotype-1b-ef65cb9-ckpt250", inference.approach4, ts_dataset),
-        # Config("stenotype-1b-ef65cb9-ckpt500", inference.approach4, ts_dataset),
-        # Config("stenotype-1b-ef65cb9-ckpt750", inference.approach4, ts_dataset),
-        # Config("stenotype-1b-ef65cb9-ckpt1000", inference.approach4, ts_dataset),
-        # Config("tsc", None, ts_dataset),
         Config("starcoderbase-7b", inference.approach1, ts_dataset),
         Config("starcoderbase-7b", inference.approach4, ts_dataset),
-        Config("stenotype-7b-a6d445d-ckpt1000", inference.approach4, ts_dataset),
+        Config("stenotype", inference.approach4, ts_dataset),
     ]
 
     # JavaScript datasets
@@ -149,19 +139,9 @@ def main():
         type_decls="type_declarations.tar.gz",
     )
     configs += [
-        # Config("starcoderbase-1b", inference.approach1, js_dataset),
-        # Config("stenotype-1b-75ce914-ckpt100", inference.approach1, js_dataset),
-        # Config("stenotype-1b-54d5802-ckpt100", inference.approach2, js_dataset),
-        # Config("stenotype-1b-2b77ede-ckpt100", inference.approach3, js_dataset),
-        # Config("starcoderbase-1b", inference.approach4, js_dataset),
-        # Config("stenotype-1b-ef65cb9-ckpt250", inference.approach4, js_dataset),
-        # Config("stenotype-1b-ef65cb9-ckpt500", inference.approach4, js_dataset),
-        # Config("stenotype-1b-ef65cb9-ckpt750", inference.approach4, js_dataset),
-        # Config("stenotype-1b-ef65cb9-ckpt1000", inference.approach4, js_dataset),
-        # Config("tsc", None, js_dataset),
         Config("starcoderbase-7b", inference.approach1, js_dataset),
         Config("starcoderbase-7b", inference.approach4, js_dataset),
-        Config("stenotype-7b-a6d445d-ckpt1000", inference.approach4, js_dataset),
+        Config("stenotype", inference.approach4, js_dataset),
     ]
 
     if args.show_configs:

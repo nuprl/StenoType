@@ -8,6 +8,11 @@ Annotations and Definitions With Machine
 Learning](https://www.proquest.com/dissertations-theses/predicting-typescript-type-annotations/docview/3039686939/se-2),
 specifically, Chapter 5.
 
+The final StenoType model is on [Hugging Face](https://huggingface.co/nuprl/stenotype).
+You will need to accept the agreement to access the model. The code and results
+may refer to this model as `stenotype-7b-a6d445d-ckpt1000`, as it was fine-tuned
+based on commit [`a6d445d`](https://github.com/nuprl/StenoType/commit/a6d445d).
+
 Figures and result summaries are in the `results/` directory. Full results are
 on [Hugging Face](https://huggingface.co/datasets/nuprl/stenotype-results).
 
@@ -35,21 +40,22 @@ npm install -g --no-save typescript@5.2.2
 ```
 
 4. Download the
-   [StarCoderBase-1b](https://huggingface.co/bigcode/starcoderbase-1b)
-   and
    [StarCoderBase-7b](https://huggingface.co/bigcode/starcoderbase-7b)
+   and
+   [StenoType](https://huggingface.co/nuprl/stenotype)
    models:
 
    a. Ensure that you have a Hugging Face account.
 
-   b. Accept the agreement for
-      [StarCoderBase-1b](https://huggingface.co/bigcode/starcoderbase-1b) and
-      [StarCoderBase-7b](https://huggingface.co/bigcode/starcoderbase-7b).
+   b. Accept the agreements for
+      [StarCoderBase-7b](https://huggingface.co/bigcode/starcoderbase-7b) and
+      [StenoType](https://huggingface.co/nuprl/stenotype).
 
    c. On the command line, log into Hugging Face with `huggingface-cli login`.
 
    d. In a directory of your choosing, e.g. `../models`,
-      run `git clone git@hf.co:bigcode/starcoderbase-1b`.
+      run `git clone git@hf.co:bigcode/starcoderbase-7b` and
+      `git clone git@hf.co:nuprl/stenotype`.
 
    e. To save space, you can delete the `.git` directory (and possibly
       `pytorch_model*.bin` if `model*.safetensors` already exists).
