@@ -8,6 +8,10 @@ Annotations and Definitions With Machine
 Learning](https://www.proquest.com/dissertations-theses/predicting-typescript-type-annotations/docview/3039686939/se-2),
 specifically, Chapter 5.
 
+The training dataset is on [Hugging Face](https://huggingface.co/datasets/nuprl/stenotype-training).
+Parts of the code may refer to it as `ts-training-get4`. This is a preprocessed version of
+[`ts-training`](https://huggingface.co/datasets/nuprl/ts-training), revision `v1.1p1`.
+
 The final StenoType model is on [Hugging Face](https://huggingface.co/nuprl/stenotype).
 You will need to accept the agreement to access the model. The code and results
 may refer to this model as `stenotype-7b-a6d445d-ckpt1000`, as it was fine-tuned
