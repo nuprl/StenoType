@@ -16,6 +16,14 @@ You will need to accept the agreement to access the model. The code and results
 may refer to this model as `stenotype-7b-a6d445d-ckpt1000`, as it was fine-tuned
 based on commit [`a6d445d`](https://github.com/nuprl/StenoType/commit/a6d445d).
 
+There are two evaluation datasets: [`stenotype-eval-ts`](https://huggingface.co/datasets/nuprl/stenotype-eval-ts)
+(also called `stenotype-eval-dataset-subset` in the code and `TS-Sourced` in the dissertation) and
+[`stenotype-eval-js`](https://huggingface.co/datasets/nuprl/stenotype-eval-js) (also called
+`typeweaver-bundle-filtered-subset` in the code and `JS-Sourced` in the dissertation). To type check the
+`stenotype-eval-js` dataset, you will also need to download the
+[tarball](https://huggingface.co/datasets/nuprl/stenotype-eval-js/blob/main/type_declarations.tar.gz) from
+Hugging Face.
+
 Figures and result summaries are in the `results/` directory. Full results are
 on [Hugging Face](https://huggingface.co/datasets/nuprl/stenotype-results).
 
